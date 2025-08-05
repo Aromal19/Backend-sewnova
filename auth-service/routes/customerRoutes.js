@@ -6,6 +6,7 @@ const auth = require('../middlewares/auth');
 // Public routes (no authentication required)
 router.post('/register', customerController.register);
 router.post('/login', customerController.login);
+router.post('/google-signin', customerController.googleSignIn);
 
 // Protected routes (authentication required)
 router.get('/profile', auth, customerController.getProfile);

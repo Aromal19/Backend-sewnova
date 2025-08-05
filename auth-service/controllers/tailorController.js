@@ -1,5 +1,7 @@
 const Tailor = require('../models/tailor');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { validateEmailForRegistration } = require('../utils/emailValidation');
 
 // Register a new tailor
 const register = async (req, res) => {
@@ -10,14 +12,22 @@ const register = async (req, res) => {
       pincode, district, state, country 
     } = req.body;
 
-    // Check if tailor already exists
-    const existingTailor = await Tailor.findOne({ 
-      $or: [{ email }, { phone }] 
-    });
+    // Validate email across all user types
+    const emailValidation = await validateEmailForRegistration(email);
+    if (!emailValidation.isValid) {
+      return res.status(400).json({ 
+        success: false,
+        message: emailValidation.message 
+      });
+    }
+
+    // Check if tailor already exists by phone
+    const existingTailor = await Tailor.findOne({ phone });
 
     if (existingTailor) {
       return res.status(400).json({ 
-        message: 'Tailor with this email or phone already exists' 
+        success: false,
+        message: 'Tailor with this phone number already exists' 
       });
     }
 
@@ -44,13 +54,26 @@ const register = async (req, res) => {
 
     await tailor.save();
 
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: tailor._id,
+        role: 'tailor',
+        email: tailor.email
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     // Remove password from response
     const tailorResponse = tailor.toObject();
     delete tailorResponse.password;
 
     res.status(201).json({
+      success: true,
       message: 'Tailor registered successfully',
-      tailor: tailorResponse
+      user: tailorResponse,
+      token
     });
   } catch (error) {
     console.error('Tailor registration error:', error);

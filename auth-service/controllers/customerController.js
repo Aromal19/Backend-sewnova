@@ -1,20 +1,30 @@
 const Customer = require('../models/customer');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
+const { validateEmailForRegistration, checkEmailExists } = require('../utils/emailValidation');
 
 // Register a new customer
 const register = async (req, res) => {
   try {
     const { firstname, lastname, email, phone, password } = req.body;
 
-    // Check if customer already exists
-    const existingCustomer = await Customer.findOne({ 
-      $or: [{ email }, { phone }] 
-    });
+    // Validate email across all user types
+    const emailValidation = await validateEmailForRegistration(email);
+    if (!emailValidation.isValid) {
+      return res.status(400).json({ 
+        success: false,
+        message: emailValidation.message 
+      });
+    }
+
+    // Check if customer already exists by phone
+    const existingCustomer = await Customer.findOne({ phone });
 
     if (existingCustomer) {
       return res.status(400).json({ 
-        message: 'Customer with this email or phone already exists' 
+        success: false,
+        message: 'Customer with this phone number already exists' 
       });
     }
 
@@ -35,7 +45,11 @@ const register = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { customerId: customer._id },
+      { 
+        userId: customer._id,
+        role: 'customer',
+        email: customer.email
+      },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -45,8 +59,9 @@ const register = async (req, res) => {
     delete customerResponse.password;
 
     res.status(201).json({
+      success: true,
       message: 'Customer registered successfully',
-      customer: customerResponse,
+      user: customerResponse,
       token
     });
   } catch (error) {
@@ -91,6 +106,103 @@ const login = async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Google OAuth Sign-In
+const googleSignIn = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ 
+        message: 'Google ID token is required' 
+      });
+    }
+
+    // Verify the Google ID token
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const { email, given_name, family_name, picture } = payload;
+
+    // Check if email exists across all user types
+    const emailCheck = await checkEmailExists(email);
+    if (emailCheck.exists && emailCheck.userType !== 'customer') {
+      return res.status(400).json({
+        success: false,
+        message: `Email is already registered as a ${emailCheck.userType}. Please use a different email or login with your existing account.`
+      });
+    }
+
+    // Check if customer already exists
+    let customer = await Customer.findOne({ email });
+
+    if (customer) {
+      // Customer exists, generate token and return
+      const token = jwt.sign(
+        { 
+          userId: customer._id,
+          role: 'customer',
+          email: customer.email
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      const customerResponse = customer.toObject();
+      delete customerResponse.password;
+
+      return res.json({
+        success: true,
+        message: 'Google Sign-In successful',
+        user: customerResponse,
+        token
+      });
+    }
+
+    // Create new customer with Google data
+    customer = new Customer({
+      firstname: given_name || 'Google',
+      lastname: family_name || 'User',
+      email,
+      profileImage: picture,
+      isGoogleUser: true,
+      // Generate a random password for Google users
+      password: await bcrypt.hash(Math.random().toString(36), 10)
+    });
+
+    await customer.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: customer._id,
+        role: 'customer',
+        email: customer.email
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Remove password from response
+    const customerResponse = customer.toObject();
+    delete customerResponse.password;
+
+    res.status(201).json({
+      success: true,
+      message: 'Google Sign-In successful',
+      user: customerResponse,
+      token
+    });
+
+  } catch (error) {
+    console.error('Google Sign-In error:', error);
+    res.status(500).json({ message: 'Server error during Google Sign-In' });
   }
 };
 
@@ -205,6 +317,7 @@ const getCustomerById = async (req, res) => {
 module.exports = {
   register,
   login,
+  googleSignIn,
   getProfile,
   updateProfile,
   changePassword,

@@ -46,20 +46,16 @@ const tailorSchema = new mongoose.Schema({
     default: []
   },
   address: {
-    type: String,
-    required: [true, 'Address is required']
+    type: String
   },
   pincode: {
-    type: String,
-    required: [true, 'Pincode is required']
+    type: String
   },
   district: {
-    type: String,
-    required: [true, 'District is required']
+    type: String
   },
   state: {
-    type: String,
-    required: [true, 'State is required']
+    type: String
   },
   country: {
     type: String,

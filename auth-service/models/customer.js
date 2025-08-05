@@ -17,12 +17,19 @@ const customerSchema = new mongoose.Schema({
   },
   phone: {
     type: String,
-    required: [true, 'Phone number is required'],
-    unique: true
+    required: function() {
+      return !this.isGoogleUser; // Phone is only required for non-Google users
+    },
+    unique: true,
+    sparse: true // Allows multiple null values
   },
   password: {
     type: String,
     required: [true, 'Password is required']
+  },
+  isGoogleUser: {
+    type: Boolean,
+    default: false
   },
   role: {
     type: String,

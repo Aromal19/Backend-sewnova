@@ -31,7 +31,7 @@ const sellerSchema = new mongoose.Schema({
     immutable: true
   },
 
-  // Seller-specific fields
+  // Seller-specific fields - Required for registration
   businessName: {
     type: String,
     required: [true, 'Business name is required']
@@ -39,33 +39,38 @@ const sellerSchema = new mongoose.Schema({
   businessType: {
     type: String,
     required: [true, 'Business type is required'],
-    enum: ['fabric', 'accessories', 'tools', 'machinery', 'other']
   },
+
+  // Optional fields for later verification
   gstNumber: {
     type: String,
-    required: [true, 'GST number is required']
+    default: ''
   },
   address: {
     type: String,
-    required: [true, 'Address is required']
+    default: ''
   },
   pincode: {
     type: String,
-    required: [true, 'Pincode is required']
+    default: ''
   },
   district: {
     type: String,
-    required: [true, 'District is required']
+    default: ''
   },
   state: {
     type: String,
-    required: [true, 'State is required']
+    default: ''
   },
   country: {
     type: String,
     default: 'India'
   },
   profileImage: {
+    type: String,
+    default: ''
+  },
+  website: {
     type: String,
     default: ''
   },

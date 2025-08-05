@@ -1,23 +1,32 @@
 const Seller = require('../models/seller');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { validateEmailForRegistration } = require('../utils/emailValidation');
 
 // Register a new seller
 const register = async (req, res) => {
   try {
     const { 
-      firstname, lastname, email, phone, password, 
-      businessName, businessType, gstNumber, address, 
-      pincode, district, state, country 
+      firstName, lastName, email, phone, password, 
+      businessName, businessType, website
     } = req.body;
 
-    // Check if seller already exists
-    const existingSeller = await Seller.findOne({ 
-      $or: [{ email }, { phone }] 
-    });
+    // Validate email across all user types
+    const emailValidation = await validateEmailForRegistration(email);
+    if (!emailValidation.isValid) {
+      return res.status(400).json({ 
+        success: false,
+        message: emailValidation.message 
+      });
+    }
+
+    // Check if seller already exists by phone
+    const existingSeller = await Seller.findOne({ phone });
 
     if (existingSeller) {
       return res.status(400).json({ 
-        message: 'Seller with this email or phone already exists' 
+        success: false,
+        message: 'Seller with this phone number already exists' 
       });
     }
 
@@ -25,32 +34,40 @@ const register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create new seller
+    // Create new seller with mapped field names
     const seller = new Seller({
-      firstname,
-      lastname,
+      firstname: firstName,
+      lastname: lastName,
       email,
       phone,
       password: hashedPassword,
       businessName,
       businessType,
-      gstNumber,
-      address,
-      pincode,
-      district,
-      state,
-      country
+      website
     });
 
     await seller.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { 
+        userId: seller._id,
+        role: 'seller',
+        email: seller.email
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
 
     // Remove password from response
     const sellerResponse = seller.toObject();
     delete sellerResponse.password;
 
     res.status(201).json({
+      success: true,
       message: 'Seller registered successfully',
-      seller: sellerResponse
+      user: sellerResponse,
+      token
     });
   } catch (error) {
     console.error('Seller registration error:', error);
