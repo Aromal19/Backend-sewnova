@@ -64,10 +64,10 @@ const register = async (req, res) => {
   }
 };
 
-// Get tailor profile by user ID from JWT
+// Get tailor profile
 const getProfile = async (req, res) => {
   try {
-    const tailor = await Tailor.findById(req.user.userId).select('-password');
+    const tailor = await Tailor.findById(req.user._id).select('-password');
     
     if (!tailor) {
       return res.status(404).json({ success: false, message: 'Tailor profile not found' });
@@ -107,7 +107,7 @@ const updateProfile = async (req, res) => {
     });
 
     const tailor = await Tailor.findByIdAndUpdate(
-      req.user.userId,
+      req.user._id,
       filteredUpdates,
       { new: true, runValidators: true }
     ).select('-password');
@@ -132,7 +132,7 @@ const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    const tailor = await Tailor.findById(req.user.userId);
+    const tailor = await Tailor.findById(req.user._id);
     if (!tailor) {
       return res.status(404).json({ message: 'Tailor not found' });
     }
@@ -161,7 +161,7 @@ const changePassword = async (req, res) => {
 // Delete tailor account
 const deleteAccount = async (req, res) => {
   try {
-    const tailor = await Tailor.findByIdAndDelete(req.user.userId);
+    const tailor = await Tailor.findByIdAndDelete(req.user._id);
     if (!tailor) {
       return res.status(404).json({ message: 'Tailor not found' });
     }

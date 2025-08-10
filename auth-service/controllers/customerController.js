@@ -217,7 +217,7 @@ const googleSignIn = async (req, res) => {
 // Get customer profile
 const getProfile = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.user.userId).select('-password');
+    const customer = await Customer.findById(req.user._id).select('-password');
     if (!customer) {
       return res.status(404).json({ success: false, message: 'Customer not found' });
     }
@@ -232,7 +232,7 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
-    const userId = req.user.userId;
+    const userId = req.user._id;
     const allowedUpdates = [
       'firstName', 'lastName', 'phone', 'address'
     ];
@@ -274,7 +274,7 @@ const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    const customer = await Customer.findById(req.customer._id);
+    const customer = await Customer.findById(req.user._id);
     
     // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, customer.password);
@@ -300,7 +300,7 @@ const changePassword = async (req, res) => {
 // Delete customer account
 const deleteAccount = async (req, res) => {
   try {
-    await Customer.findByIdAndDelete(req.customer._id);
+    await Customer.findByIdAndDelete(req.user._id);
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);
