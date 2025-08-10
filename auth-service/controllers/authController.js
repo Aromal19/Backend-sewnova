@@ -1,83 +1,36 @@
 const Customer = require('../models/customer');
 const Tailor = require('../models/tailor');
 const Seller = require('../models/seller');
-const BlacklistedToken = require('../models/blacklistedToken');
+const RefreshToken = require('../models/refreshToken');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { checkEmailExists } = require('../utils/emailValidation');
+const { generateAccessToken, generateRefreshToken, REFRESH_TOKEN_EXPIRES_IN } = require('../utils/tokenService');
 
 // Enhanced login function that automatically detects user role
 const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    // Validate required fields
     if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required'
-      });
+      return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
-
-    // Check if user exists in any of the collections
     let user = null;
     let userRole = null;
     let UserModel = null;
-
-    // Check in Customer collection
     user = await Customer.findOne({ email: email.toLowerCase() });
-    if (user) {
-      userRole = 'customer';
-      UserModel = Customer;
-    }
-
-    // If not found in Customer, check in Tailor collection
-    if (!user) {
-      user = await Tailor.findOne({ email: email.toLowerCase() });
-      if (user) {
-        userRole = 'tailor';
-        UserModel = Tailor;
-      }
-    }
-
-    // If not found in Tailor, check in Seller collection
-    if (!user) {
-      user = await Seller.findOne({ email: email.toLowerCase() });
-      if (user) {
-        userRole = 'seller';
-        UserModel = Seller;
-      }
-    }
-
-    // If user not found in any collection
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-
-    // Verify password
+    if (user) { userRole = 'customer'; UserModel = Customer; }
+    if (!user) { user = await Tailor.findOne({ email: email.toLowerCase() }); if (user) { userRole = 'tailor'; UserModel = Tailor; } }
+    if (!user) { user = await Seller.findOne({ email: email.toLowerCase() }); if (user) { userRole = 'seller'; UserModel = Seller; } }
+    if (!user) { return res.status(401).json({ success: false, message: 'Invalid email or password' }); }
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
+    if (!isPasswordValid) { return res.status(401).json({ success: false, message: 'Invalid email or password' }); }
+    if (!user.isGoogleUser && !user.isEmailVerified) {
+      return res.status(401).json({ success: false, message: 'Please verify your email address before logging in. Check your inbox for the verification link.', requiresEmailVerification: true, email: user.email, userType: userRole });
     }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: user._id,
-        role: userRole,
-        email: user.email
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
+    // Generate tokens
+    const accessToken = generateAccessToken({ userId: user._id, role: userRole, email: user.email });
+    const refreshTokenDoc = await generateRefreshToken(user._id);
     // Prepare user response (exclude password)
     const userResponse = {
       id: user._id,
@@ -87,8 +40,6 @@ const loginUser = async (req, res) => {
       role: userRole,
       phone: user.phone
     };
-
-    // Add role-specific fields
     if (userRole === 'tailor') {
       userResponse.shopName = user.shopName;
       userResponse.experience = user.experience;
@@ -105,20 +56,40 @@ const loginUser = async (req, res) => {
       userResponse.totalSales = user.totalSales;
       userResponse.productsCount = user.productsCount;
     }
-
-    res.json({
-      success: true,
-      message: 'Login successful',
-      user: userResponse,
-      token
+    // Set refresh token as HttpOnly cookie
+    res.cookie('refreshToken', refreshTokenDoc.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000
     });
-
+    res.json({ success: true, message: 'Login successful', user: userResponse, accessToken });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error during login'
-    });
+    res.status(500).json({ success: false, message: 'Server error during login' });
+  }
+};
+
+// Refresh access token endpoint
+const refreshAccessToken = async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) return res.status(401).json({ success: false, message: 'No refresh token' });
+    const refreshTokenDoc = await RefreshToken.findOne({ token });
+    if (!refreshTokenDoc || refreshTokenDoc.expires < new Date()) {
+      return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+    }
+    // Find user
+    let user = await Customer.findById(refreshTokenDoc.user);
+    if (!user) user = await Tailor.findById(refreshTokenDoc.user);
+    if (!user) user = await Seller.findById(refreshTokenDoc.user);
+    if (!user) return res.status(401).json({ success: false, message: 'User not found' });
+    // Issue new access token
+    const userRole = user.role || (user.shopName ? 'tailor' : user.businessName ? 'seller' : 'customer');
+    const accessToken = generateAccessToken({ userId: user._id, role: userRole, email: user.email });
+    res.json({ success: true, accessToken });
+  } catch (err) {
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -188,15 +159,6 @@ const validateToken = async (req, res) => {
       });
     }
 
-    // First, check if token is blacklisted
-    const blacklistedToken = await BlacklistedToken.findOne({ token });
-    if (blacklistedToken) {
-      return res.status(401).json({
-        success: false,
-        message: 'Token has been invalidated. Please login again.'
-      });
-    }
-
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
@@ -251,68 +213,17 @@ const validateToken = async (req, res) => {
   }
 };
 
-// Enhanced logout function with token blacklisting
+// Logout: delete refresh token and clear cookie
 const logoutUser = async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: 'No token provided'
-      });
+    const token = req.cookies.refreshToken;
+    if (token) {
+      await RefreshToken.deleteOne({ token });
+      res.clearCookie('refreshToken');
     }
-
-    // Verify the token to get user information
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Determine user model based on role
-    let userModel;
-    switch (decoded.role) {
-      case 'customer':
-        userModel = 'Customer';
-        break;
-      case 'tailor':
-        userModel = 'Tailor';
-        break;
-      case 'seller':
-        userModel = 'Seller';
-        break;
-      default:
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid user role'
-        });
-    }
-
-    // Add token to blacklist (minimal data)
-    const blacklistedToken = new BlacklistedToken({
-      token: token,
-      expiresAt: new Date(decoded.exp * 1000) // Convert JWT exp to Date
-    });
-
-    await blacklistedToken.save();
-    
-    res.json({
-      success: true,
-      message: 'Logged out successfully. Token has been invalidated.'
-    });
-
+    res.json({ success: true, message: 'Logged out' });
   } catch (error) {
-    console.error('Logout error:', error);
-    
-    // If token is invalid, still return success (frontend will clear localStorage anyway)
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return res.json({
-        success: true,
-        message: 'Logged out successfully'
-      });
-    }
-    
-    res.status(500).json({
-      success: false,
-      message: 'Server error during logout'
-    });
+    res.status(500).json({ success: false, message: 'Server error during logout' });
   }
 };
 
@@ -346,71 +257,71 @@ const checkEmailAvailability = async (req, res) => {
   }
 };
 
+// Change password endpoint
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    // Find user based on role
+    let user = null;
+    if (userRole === 'customer') {
+      user = await Customer.findById(userId);
+    } else if (userRole === 'seller') {
+      user = await Seller.findById(userId);
+    } else if (userRole === 'tailor') {
+      user = await Tailor.findById(userId);
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedNewPassword;
+    await user.save();
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ success: false, message: 'Server error during password change' });
+  }
+};
+
 // Generic Google OAuth Sign-In for all user types
 const googleSignIn = async (req, res) => {
   try {
     const { idToken } = req.body;
-
     if (!idToken) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Google ID token is required' 
-      });
+      return res.status(400).json({ success: false, message: 'Google ID token is required' });
     }
-
-    // Verify the Google ID token
     const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-    const ticket = await client.verifyIdToken({
-      idToken: idToken,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
-
+    const ticket = await client.verifyIdToken({ idToken, audience: process.env.GOOGLE_CLIENT_ID });
     const payload = ticket.getPayload();
     const { email, given_name, family_name, picture } = payload;
-
-    // Check if user exists in any of the collections
     let user = null;
     let userRole = null;
     let UserModel = null;
-
-    // Check in Customer collection
     user = await Customer.findOne({ email: email.toLowerCase() });
+    if (user) { userRole = 'customer'; UserModel = Customer; }
+    if (!user) { user = await Tailor.findOne({ email: email.toLowerCase() }); if (user) { userRole = 'tailor'; UserModel = Tailor; } }
+    if (!user) { user = await Seller.findOne({ email: email.toLowerCase() }); if (user) { userRole = 'seller'; UserModel = Seller; } }
     if (user) {
-      userRole = 'customer';
-      UserModel = Customer;
-    }
-
-    // If not found in Customer, check in Tailor collection
-    if (!user) {
-      user = await Tailor.findOne({ email: email.toLowerCase() });
-      if (user) {
-        userRole = 'tailor';
-        UserModel = Tailor;
-      }
-    }
-
-    // If not found in Tailor, check in Seller collection
-    if (!user) {
-      user = await Seller.findOne({ email: email.toLowerCase() });
-      if (user) {
-        userRole = 'seller';
-        UserModel = Seller;
-      }
-    }
-
-    if (user) {
-      // User exists, generate token and return
-      const token = jwt.sign(
-        { 
-          userId: user._id,
-          role: userRole,
-          email: user.email
-        },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
-      // Prepare user response (exclude password)
+      // User exists, issue tokens
+      const accessToken = generateAccessToken({ userId: user._id, role: userRole, email: user.email });
+      const refreshTokenDoc = await generateRefreshToken(user._id);
       const userResponse = {
         id: user._id,
         firstname: user.firstname,
@@ -419,8 +330,6 @@ const googleSignIn = async (req, res) => {
         role: userRole,
         phone: user.phone
       };
-
-      // Add role-specific fields
       if (userRole === 'tailor') {
         userResponse.shopName = user.shopName;
         userResponse.experience = user.experience;
@@ -437,41 +346,27 @@ const googleSignIn = async (req, res) => {
         userResponse.totalSales = user.totalSales;
         userResponse.productsCount = user.productsCount;
       }
-
-      return res.json({
-        success: true,
-        message: 'Google Sign-In successful',
-        user: userResponse,
-        token
+      res.cookie('refreshToken', refreshTokenDoc.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000
       });
+      return res.json({ success: true, message: 'Google Sign-In successful', user: userResponse, accessToken });
     }
-
     // User doesn't exist, create new customer by default
-    // (You might want to add logic to determine user type based on some criteria)
     const newUser = new Customer({
       firstname: given_name || 'Google',
       lastname: family_name || 'User',
       email: email.toLowerCase(),
       profileImage: picture,
       isGoogleUser: true,
-      // Generate a random password for Google users
+      isEmailVerified: true,
       password: await bcrypt.hash(Math.random().toString(36), 10)
     });
-
     await newUser.save();
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: newUser._id,
-        role: 'customer',
-        email: newUser.email
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Prepare user response
+    const accessToken = generateAccessToken({ userId: newUser._id, role: 'customer', email: newUser.email });
+    const refreshTokenDoc = await generateRefreshToken(newUser._id);
     const userResponse = {
       id: newUser._id,
       firstname: newUser.firstname,
@@ -480,28 +375,26 @@ const googleSignIn = async (req, res) => {
       role: 'customer',
       phone: newUser.phone
     };
-
-    res.status(201).json({
-      success: true,
-      message: 'Google Sign-In successful',
-      user: userResponse,
-      token
+    res.cookie('refreshToken', refreshTokenDoc.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: REFRESH_TOKEN_EXPIRES_IN * 1000
     });
-
+    res.status(201).json({ success: true, message: 'Google Sign-In successful', user: userResponse, accessToken });
   } catch (error) {
     console.error('Google Sign-In error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: 'Server error during Google Sign-In' 
-    });
+    res.status(500).json({ success: false, message: 'Server error during Google Sign-In' });
   }
 };
 
 module.exports = {
   loginUser,
   getUserRole,
-  validateToken,
+  refreshAccessToken,
   logoutUser,
   checkEmailAvailability,
-  googleSignIn
+  googleSignIn,
+  validateToken,
+  changePassword
 }; 

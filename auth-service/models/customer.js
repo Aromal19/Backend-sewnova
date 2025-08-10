@@ -31,6 +31,20 @@ const customerSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isEmailVerified: {
+    type: Boolean,
+    default: function() {
+      return this.isGoogleUser; // Google users are automatically verified
+    }
+  },
+  emailVerificationToken: {
+    type: String,
+    default: null
+  },
+  emailVerificationTokenExpires: {
+    type: Date,
+    default: null
+  },
   role: {
     type: String,
     default: 'customer',

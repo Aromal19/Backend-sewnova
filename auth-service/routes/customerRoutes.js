@@ -10,7 +10,7 @@ router.post('/google-signin', customerController.googleSignIn);
 
 // Protected routes (authentication required)
 router.get('/profile', auth, customerController.getProfile);
-router.put('/profile', auth, customerController.updateProfile);
+router.put('/update-profile', auth, customerController.updateProfile);
 router.put('/change-password', auth, customerController.changePassword);
 router.delete('/account', auth, customerController.deleteAccount);
 

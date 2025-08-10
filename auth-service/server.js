@@ -1,7 +1,10 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 require('dotenv').config();
+
+
 
 
 
@@ -21,12 +24,13 @@ app.use(cors({
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Routes
 app.use('/api/customers', customerRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/tailor', tailorRoutes);
-app.use('/api/seller', sellerRoutes);
+app.use('/api/tailors', tailorRoutes);
+app.use('/api/sellers', sellerRoutes);
 
 // Health check route
 app.get('/health', (req, res) => {
@@ -64,7 +68,7 @@ const connectDB = async () => {
 };
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
   await connectDB();

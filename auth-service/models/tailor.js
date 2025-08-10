@@ -24,6 +24,18 @@ const tailorSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Password is required']
   },
+  isEmailVerified: {
+    type: Boolean,
+    default: false
+  },
+  emailVerificationToken: {
+    type: String,
+    default: null
+  },
+  emailVerificationTokenExpires: {
+    type: Date,
+    default: null
+  },
   role: {
     type: String,
     default: 'tailor',

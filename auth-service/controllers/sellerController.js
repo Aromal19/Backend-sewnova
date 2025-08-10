@@ -1,40 +1,23 @@
 const Seller = require('../models/seller');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { validateEmailForRegistration } = require('../utils/emailValidation');
+const { generateVerificationToken, sendVerificationEmail } = require('../utils/emailService');
+const { generateAccessToken, generateRefreshToken, REFRESH_TOKEN_EXPIRES_IN } = require('../utils/tokenService');
 
 // Register a new seller
 const register = async (req, res) => {
   try {
-    const { 
-      firstName, lastName, email, phone, password, 
-      businessName, businessType, website
-    } = req.body;
-
-    // Validate email across all user types
+    const { firstName, lastName, email, phone, password, businessName, businessType, website } = req.body;
     const emailValidation = await validateEmailForRegistration(email);
     if (!emailValidation.isValid) {
-      return res.status(400).json({ 
-        success: false,
-        message: emailValidation.message 
-      });
+      return res.status(400).json({ success: false, message: emailValidation.message });
     }
-
-    // Check if seller already exists by phone
     const existingSeller = await Seller.findOne({ phone });
-
     if (existingSeller) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Seller with this phone number already exists' 
-      });
+      return res.status(400).json({ success: false, message: 'Seller with this phone number already exists' });
     }
-
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create new seller with mapped field names
     const seller = new Seller({
       firstname: firstName,
       lastname: lastName,
@@ -45,30 +28,31 @@ const register = async (req, res) => {
       businessType,
       website
     });
-
+    const verificationToken = generateVerificationToken();
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    seller.emailVerificationToken = verificationToken;
+    seller.emailVerificationTokenExpires = tokenExpiry;
     await seller.save();
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: seller._id,
-        role: 'seller',
-        email: seller.email
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Remove password from response
-    const sellerResponse = seller.toObject();
-    delete sellerResponse.password;
-
-    res.status(201).json({
-      success: true,
-      message: 'Seller registered successfully',
-      user: sellerResponse,
-      token
-    });
+    const userName = `${seller.firstname} ${seller.lastname}`;
+    const emailResult = await sendVerificationEmail(seller.email, verificationToken, 'seller', userName);
+    if (emailResult.success) {
+      res.status(201).json({
+        success: true,
+        message: 'Seller registered successfully. Please check your email to verify your account.',
+        requiresEmailVerification: true,
+        email: seller.email,
+        userType: 'seller'
+      });
+    } else {
+      res.status(201).json({
+        success: true,
+        message: 'Seller registered successfully, but verification email could not be sent. Please try resending verification email.',
+        requiresEmailVerification: true,
+        email: seller.email,
+        userType: 'seller',
+        emailError: true
+      });
+    }
   } catch (error) {
     console.error('Seller registration error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -81,16 +65,17 @@ const getProfile = async (req, res) => {
     const seller = await Seller.findById(req.user.userId).select('-password');
     
     if (!seller) {
-      return res.status(404).json({ message: 'Seller profile not found' });
+      return res.status(404).json({ success: false, message: 'Seller profile not found' });
     }
 
     res.json({ 
+      success: true,
       message: 'Profile retrieved successfully',
       seller 
     });
   } catch (error) {
     console.error('Get seller profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -99,16 +84,19 @@ const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
     const allowedUpdates = [
-      'firstname', 'lastname', 'phone', 'businessName', 'businessType',
-      'gstNumber', 'address', 'pincode', 'district', 'state',
-      'country', 'profileImage'
+      'firstName', 'lastName', 'phone', 'businessName', 'businessType',
+      'businessAddress', 'gstNumber', 'panNumber', 'bankAccount', 'ifscCode'
     ];
 
     // Filter out non-allowed fields
     const filteredUpdates = {};
     Object.keys(updates).forEach(key => {
       if (allowedUpdates.includes(key)) {
-        filteredUpdates[key] = updates[key];
+        // Map frontend field names to database field names
+        if (key === 'firstName') filteredUpdates.firstname = updates[key];
+        else if (key === 'lastName') filteredUpdates.lastname = updates[key];
+        else if (key === 'businessAddress') filteredUpdates.address = updates[key];
+        else filteredUpdates[key] = updates[key];
       }
     });
 
@@ -119,16 +107,17 @@ const updateProfile = async (req, res) => {
     ).select('-password');
 
     if (!seller) {
-      return res.status(404).json({ message: 'Seller profile not found' });
+      return res.status(404).json({ success: false, message: 'Seller profile not found' });
     }
 
     res.json({
+      success: true,
       message: 'Profile updated successfully',
       seller
     });
   } catch (error) {
     console.error('Update seller profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

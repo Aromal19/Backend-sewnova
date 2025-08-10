@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const { validateEmailForRegistration, checkEmailExists } = require('../utils/emailValidation');
+const { generateVerificationToken, sendVerificationEmail } = require('../utils/emailService');
 
 // Register a new customer
 const register = async (req, res) => {
@@ -20,7 +21,6 @@ const register = async (req, res) => {
 
     // Check if customer already exists by phone
     const existingCustomer = await Customer.findOne({ phone });
-
     if (existingCustomer) {
       return res.status(400).json({ 
         success: false,
@@ -41,29 +41,36 @@ const register = async (req, res) => {
       password: hashedPassword
     });
 
+    // Generate verification token
+    const verificationToken = generateVerificationToken();
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    customer.emailVerificationToken = verificationToken;
+    customer.emailVerificationTokenExpires = tokenExpiry;
     await customer.save();
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: customer._id,
-        role: 'customer',
-        email: customer.email
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Send verification email
+    const userName = `${customer.firstname} ${customer.lastname}`;
+    const emailResult = await sendVerificationEmail(customer.email, verificationToken, 'customer', userName);
 
-    // Remove password from response
-    const customerResponse = customer.toObject();
-    delete customerResponse.password;
-
-    res.status(201).json({
-      success: true,
-      message: 'Customer registered successfully',
-      user: customerResponse,
-      token
-    });
+    if (emailResult.success) {
+      res.status(201).json({
+        success: true,
+        message: 'Customer registered successfully. Please check your email to verify your account.',
+        requiresEmailVerification: true,
+        email: customer.email,
+        userType: 'customer'
+      });
+    } else {
+      res.status(201).json({
+        success: true,
+        message: 'Customer registered successfully, but verification email could not be sent. Please try resending verification email.',
+        requiresEmailVerification: true,
+        email: customer.email,
+        userType: 'customer',
+        emailError: true
+      });
+    }
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -172,6 +179,7 @@ const googleSignIn = async (req, res) => {
       email,
       profileImage: picture,
       isGoogleUser: true,
+      isEmailVerified: true, // Google users are automatically verified
       // Generate a random password for Google users
       password: await bcrypt.hash(Math.random().toString(36), 10)
     });
@@ -209,11 +217,14 @@ const googleSignIn = async (req, res) => {
 // Get customer profile
 const getProfile = async (req, res) => {
   try {
-    const customer = await Customer.findById(req.customer._id).select('-password');
-    res.json({ customer });
+    const customer = await Customer.findById(req.user.userId).select('-password');
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+    res.json({ success: true, customer });
   } catch (error) {
     console.error('Get profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -221,32 +232,40 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
+    const userId = req.user.userId;
     const allowedUpdates = [
-      'firstname', 'lastname', 'address', 'pincode', 
-      'district', 'state', 'country', 'profileImage'
+      'firstName', 'lastName', 'phone', 'address'
     ];
 
     // Filter out non-allowed fields
     const filteredUpdates = {};
     Object.keys(updates).forEach(key => {
       if (allowedUpdates.includes(key)) {
-        filteredUpdates[key] = updates[key];
+        // Map frontend field names to database field names
+        if (key === 'firstName') filteredUpdates.firstname = updates[key];
+        else if (key === 'lastName') filteredUpdates.lastname = updates[key];
+        else filteredUpdates[key] = updates[key];
       }
     });
 
     const customer = await Customer.findByIdAndUpdate(
-      req.customer._id,
+      userId,
       filteredUpdates,
       { new: true, runValidators: true }
     ).select('-password');
 
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
     res.json({
+      success: true,
       message: 'Profile updated successfully',
       customer
     });
   } catch (error) {
     console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

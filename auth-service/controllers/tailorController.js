@@ -1,41 +1,23 @@
 const Tailor = require('../models/tailor');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { validateEmailForRegistration } = require('../utils/emailValidation');
+const { generateVerificationToken, sendVerificationEmail } = require('../utils/emailService');
+const { generateAccessToken, generateRefreshToken, REFRESH_TOKEN_EXPIRES_IN } = require('../utils/tokenService');
 
 // Register a new tailor
 const register = async (req, res) => {
   try {
-    const { 
-      firstname, lastname, email, phone, password, 
-      shopName, experience, specialization, address, 
-      pincode, district, state, country 
-    } = req.body;
-
-    // Validate email across all user types
+    const { firstname, lastname, email, phone, password, shopName, experience, specialization, address, pincode, district, state, country } = req.body;
     const emailValidation = await validateEmailForRegistration(email);
     if (!emailValidation.isValid) {
-      return res.status(400).json({ 
-        success: false,
-        message: emailValidation.message 
-      });
+      return res.status(400).json({ success: false, message: emailValidation.message });
     }
-
-    // Check if tailor already exists by phone
     const existingTailor = await Tailor.findOne({ phone });
-
     if (existingTailor) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Tailor with this phone number already exists' 
-      });
+      return res.status(400).json({ success: false, message: 'Tailor with this phone number already exists' });
     }
-
-    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
-
-    // Create new tailor
     const tailor = new Tailor({
       firstname,
       lastname,
@@ -51,30 +33,31 @@ const register = async (req, res) => {
       state,
       country
     });
-
+    const verificationToken = generateVerificationToken();
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    tailor.emailVerificationToken = verificationToken;
+    tailor.emailVerificationTokenExpires = tokenExpiry;
     await tailor.save();
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: tailor._id,
-        role: 'tailor',
-        email: tailor.email
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Remove password from response
-    const tailorResponse = tailor.toObject();
-    delete tailorResponse.password;
-
-    res.status(201).json({
-      success: true,
-      message: 'Tailor registered successfully',
-      user: tailorResponse,
-      token
-    });
+    const userName = `${tailor.firstname} ${tailor.lastname}`;
+    const emailResult = await sendVerificationEmail(tailor.email, verificationToken, 'tailor', userName);
+    if (emailResult.success) {
+      res.status(201).json({
+        success: true,
+        message: 'Tailor registered successfully. Please check your email to verify your account.',
+        requiresEmailVerification: true,
+        email: tailor.email,
+        userType: 'tailor'
+      });
+    } else {
+      res.status(201).json({
+        success: true,
+        message: 'Tailor registered successfully, but verification email could not be sent. Please try resending verification email.',
+        requiresEmailVerification: true,
+        email: tailor.email,
+        userType: 'tailor',
+        emailError: true
+      });
+    }
   } catch (error) {
     console.error('Tailor registration error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -87,16 +70,17 @@ const getProfile = async (req, res) => {
     const tailor = await Tailor.findById(req.user.userId).select('-password');
     
     if (!tailor) {
-      return res.status(404).json({ message: 'Tailor profile not found' });
+      return res.status(404).json({ success: false, message: 'Tailor profile not found' });
     }
 
     res.json({ 
+      success: true,
       message: 'Profile retrieved successfully',
       tailor 
     });
   } catch (error) {
     console.error('Get tailor profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -105,16 +89,20 @@ const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
     const allowedUpdates = [
-      'firstname', 'lastname', 'phone', 'shopName', 'experience',
-      'specialization', 'address', 'pincode', 'district', 'state',
-      'country', 'profileImage'
+      'firstName', 'lastName', 'phone', 'shopName', 'shopAddress',
+      'experience', 'speciality', 'workingHours', 'about', 'skills'
     ];
 
     // Filter out non-allowed fields
     const filteredUpdates = {};
     Object.keys(updates).forEach(key => {
       if (allowedUpdates.includes(key)) {
-        filteredUpdates[key] = updates[key];
+        // Map frontend field names to database field names
+        if (key === 'firstName') filteredUpdates.firstname = updates[key];
+        else if (key === 'lastName') filteredUpdates.lastname = updates[key];
+        else if (key === 'shopAddress') filteredUpdates.address = updates[key];
+        else if (key === 'speciality') filteredUpdates.specialization = updates[key];
+        else filteredUpdates[key] = updates[key];
       }
     });
 
@@ -125,16 +113,17 @@ const updateProfile = async (req, res) => {
     ).select('-password');
 
     if (!tailor) {
-      return res.status(404).json({ message: 'Tailor profile not found' });
+      return res.status(404).json({ success: false, message: 'Tailor profile not found' });
     }
 
     res.json({
+      success: true,
       message: 'Profile updated successfully',
       tailor
     });
   } catch (error) {
     console.error('Update tailor profile error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

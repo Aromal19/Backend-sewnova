@@ -8,7 +8,7 @@ router.post('/register', sellerController.register);
 
 // Protected routes (authentication required)
 router.get('/profile', auth, sellerController.getProfile);
-router.patch('/profile', auth, sellerController.updateProfile);
+router.put('/update-profile', auth, sellerController.updateProfile);
 router.put('/change-password', auth, sellerController.changePassword);
 router.delete('/account', auth, sellerController.deleteAccount);
 

@@ -8,7 +8,7 @@ router.post('/register', tailorController.register);
 
 // Protected routes (authentication required)
 router.get('/profile', auth, tailorController.getProfile);
-router.patch('/profile', auth, tailorController.updateProfile);
+router.put('/update-profile', auth, tailorController.updateProfile);
 router.put('/change-password', auth, tailorController.changePassword);
 router.delete('/account', auth, tailorController.deleteAccount);
 
