@@ -8,7 +8,7 @@ const { generateVerificationToken, sendVerificationEmail } = require('../utils/e
 // Register a new customer
 const register = async (req, res) => {
   try {
-    const { firstname, lastname, email, phone, password } = req.body;
+    const { firstname, lastname, email, phone, countryCode, password } = req.body;
 
     // Validate email across all user types
     const emailValidation = await validateEmailForRegistration(email);
@@ -38,6 +38,7 @@ const register = async (req, res) => {
       lastname,
       email,
       phone,
+      countryCode: countryCode || '+91', // Default to India if not provided
       password: hashedPassword
     });
 
@@ -96,7 +97,7 @@ const login = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { customerId: customer._id },
+      { userId: customer._id, role: 'customer', email: customer.email },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -234,7 +235,7 @@ const updateProfile = async (req, res) => {
     const updates = req.body;
     const userId = req.user._id;
     const allowedUpdates = [
-      'firstName', 'lastName', 'phone', 'address'
+      'firstName', 'lastName', 'phone', 'countryCode', 'address'
     ];
 
     // Filter out non-allowed fields
@@ -274,12 +275,16 @@ const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    const customer = await Customer.findById(req.user._id);
+    const customer = await Customer.findById(req.user._id); // Use _id directly from user object
+    
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
     
     // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, customer.password);
     if (!isPasswordValid) {
-      return res.status(400).json({ message: 'Current password is incorrect' });
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
     }
 
     // Hash new password
@@ -290,10 +295,10 @@ const changePassword = async (req, res) => {
     customer.password = hashedPassword;
     await customer.save();
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     console.error('Change password error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -301,10 +306,10 @@ const changePassword = async (req, res) => {
 const deleteAccount = async (req, res) => {
   try {
     await Customer.findByIdAndDelete(req.user._id);
-    res.json({ message: 'Account deleted successfully' });
+    res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

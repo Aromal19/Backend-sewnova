@@ -20,6 +20,10 @@ const sellerSchema = new mongoose.Schema({
     required: [true, 'Phone number is required'],
     unique: true
   },
+  countryCode: {
+    type: String,
+    default: '+91' // Default to India
+  },
   password: {
     type: String,
     required: [true, 'Password is required']

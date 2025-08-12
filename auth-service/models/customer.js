@@ -23,6 +23,10 @@ const customerSchema = new mongoose.Schema({
     unique: true,
     sparse: true // Allows multiple null values
   },
+  countryCode: {
+    type: String,
+    default: '+91' // Default to India
+  },
   password: {
     type: String,
     required: [true, 'Password is required']

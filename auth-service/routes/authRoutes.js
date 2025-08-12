@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const emailVerificationController = require('../controllers/emailVerificationController');
+const auth = require('../middlewares/auth');
 // Removed: const checkBlacklistedToken = require('../middlewares/checkBlacklistedToken');
 
 // Enhanced login route that automatically detects user role
@@ -32,6 +33,6 @@ router.get('/check-verification-status', emailVerificationController.checkVerifi
 router.post('/refresh-token', authController.refreshAccessToken);
 
 // Add change password endpoint (requires authentication)
-router.post('/change-password', authController.changePassword);
+router.post('/change-password', auth, authController.changePassword);
 
 module.exports = router; 

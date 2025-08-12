@@ -7,7 +7,7 @@ const { generateAccessToken, generateRefreshToken, REFRESH_TOKEN_EXPIRES_IN } = 
 // Register a new tailor
 const register = async (req, res) => {
   try {
-    const { firstname, lastname, email, phone, password, shopName, experience, specialization, address, pincode, district, state, country } = req.body;
+    const { firstname, lastname, email, phone, countryCode, password, shopName, experience, specialization, address, pincode, district, state, country } = req.body;
     const emailValidation = await validateEmailForRegistration(email);
     if (!emailValidation.isValid) {
       return res.status(400).json({ success: false, message: emailValidation.message });
@@ -23,6 +23,7 @@ const register = async (req, res) => {
       lastname,
       email,
       phone,
+      countryCode: countryCode || '+91', // Default to India if not provided
       password: hashedPassword,
       shopName,
       experience,
@@ -89,7 +90,7 @@ const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
     const allowedUpdates = [
-      'firstName', 'lastName', 'phone', 'shopName', 'shopAddress',
+      'firstName', 'lastName', 'phone', 'countryCode', 'shopName', 'shopAddress',
       'experience', 'speciality', 'workingHours', 'about', 'skills'
     ];
 
@@ -132,15 +133,15 @@ const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    const tailor = await Tailor.findById(req.user._id);
+    const tailor = await Tailor.findById(req.user._id); // Use _id directly from user object
     if (!tailor) {
-      return res.status(404).json({ message: 'Tailor not found' });
+      return res.status(404).json({ success: false, message: 'Tailor not found' });
     }
     
     // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, tailor.password);
     if (!isPasswordValid) {
-      return res.status(400).json({ message: 'Current password is incorrect' });
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
     }
 
     // Hash new password
@@ -151,10 +152,10 @@ const changePassword = async (req, res) => {
     tailor.password = hashedPassword;
     await tailor.save();
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     console.error('Change password error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
@@ -163,12 +164,12 @@ const deleteAccount = async (req, res) => {
   try {
     const tailor = await Tailor.findByIdAndDelete(req.user._id);
     if (!tailor) {
-      return res.status(404).json({ message: 'Tailor not found' });
+      return res.status(404).json({ success: false, message: 'Tailor not found' });
     }
-    res.json({ message: 'Account deleted successfully' });
+    res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

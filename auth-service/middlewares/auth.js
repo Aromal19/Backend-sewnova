@@ -47,7 +47,7 @@ const auth = async (req, res, next) => {
     }
 
     // Add user and role to request object
-    req.user = user;
+    req.user = { ...user.toObject(), userId: user._id };
     req.userRole = decoded.role;
     next();
   } catch (error) {

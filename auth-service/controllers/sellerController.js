@@ -7,7 +7,7 @@ const { generateAccessToken, generateRefreshToken, REFRESH_TOKEN_EXPIRES_IN } = 
 // Register a new seller
 const register = async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, password, businessName, businessType, website } = req.body;
+    const { firstName, lastName, email, phone, countryCode, password, businessName, businessType, website } = req.body;
     const emailValidation = await validateEmailForRegistration(email);
     if (!emailValidation.isValid) {
       return res.status(400).json({ success: false, message: emailValidation.message });
@@ -23,6 +23,7 @@ const register = async (req, res) => {
       lastname: lastName,
       email,
       phone,
+      countryCode: countryCode || '+91', // Default to India if not provided
       password: hashedPassword,
       businessName,
       businessType,
@@ -62,7 +63,7 @@ const register = async (req, res) => {
 // Get seller profile by user ID from JWT
 const getProfile = async (req, res) => {
   try {
-    const seller = await Seller.findById(req.user.userId).select('-password');
+    const seller = await Seller.findById(req.user._id).select('-password');
     
     if (!seller) {
       return res.status(404).json({ success: false, message: 'Seller profile not found' });
@@ -84,7 +85,7 @@ const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
     const allowedUpdates = [
-      'firstName', 'lastName', 'phone', 'businessName', 'businessType',
+      'firstName', 'lastName', 'phone', 'countryCode', 'businessName', 'businessType',
       'businessAddress', 'gstNumber', 'panNumber', 'bankAccount', 'ifscCode'
     ];
 
@@ -101,7 +102,7 @@ const updateProfile = async (req, res) => {
     });
 
     const seller = await Seller.findByIdAndUpdate(
-      req.user.userId,
+      req.user._id,
       filteredUpdates,
       { new: true, runValidators: true }
     ).select('-password');
@@ -126,17 +127,17 @@ const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
-    const seller = await Seller.findById(req.user.userId);
+    const seller = await Seller.findById(req.user._id); // Use _id directly from user object
     if (!seller) {
-      return res.status(404).json({ message: 'Seller not found' });
+      return res.status(404).json({ success: false, message: 'Seller not found' });
     }
     
     // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, seller.password);
     if (!isPasswordValid) {
-      return res.status(400).json({ message: 'Current password is incorrect' });
+      return res.status(400).json({ success: false, message: 'Current password is incorrect' });
     }
-
+    
     // Hash new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
@@ -145,24 +146,24 @@ const changePassword = async (req, res) => {
     seller.password = hashedPassword;
     await seller.save();
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     console.error('Change password error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
 // Delete seller account
 const deleteAccount = async (req, res) => {
   try {
-    const seller = await Seller.findByIdAndDelete(req.user.userId);
+    const seller = await Seller.findByIdAndDelete(req.user._id);
     if (!seller) {
-      return res.status(404).json({ message: 'Seller not found' });
+      return res.status(404).json({ success: false, message: 'Seller not found' });
     }
-    res.json({ message: 'Account deleted successfully' });
+    res.json({ success: true, message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Delete account error:', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 
