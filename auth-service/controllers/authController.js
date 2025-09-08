@@ -150,8 +150,12 @@ const getUserRole = async (req, res) => {
 // Enhanced token validation with blacklist check
 const validateToken = async (req, res) => {
   try {
-    const token = req.headers.authorization?.split(' ')[1];
-    
+    const authHeader = req.headers.authorization;
+    console.log("Authorization header:", authHeader);
+
+    const token = authHeader?.split(' ')[1];
+    console.log("Extracted token:", token);
+
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -161,7 +165,8 @@ const validateToken = async (req, res) => {
 
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+    console.log("Decoded JWT payload:", decoded);
+
     // Get user from appropriate collection
     let user = null;
     let UserModel = null;
@@ -184,7 +189,7 @@ const validateToken = async (req, res) => {
     }
 
     user = await UserModel.findById(decoded.userId).select('-password');
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,

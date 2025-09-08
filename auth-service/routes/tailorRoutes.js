@@ -11,6 +11,7 @@ router.get('/profile', auth, tailorController.getProfile);
 router.put('/update-profile', auth, tailorController.updateProfile);
 router.put('/change-password', auth, tailorController.changePassword);
 router.delete('/account', auth, tailorController.deleteAccount);
+router.post('/verify-aadhaar', auth, tailorController.verifyAadhaar);
 
 // Email-based routes (for account manipulation using email)
 router.get('/email/:email', tailorController.getTailorByEmail);

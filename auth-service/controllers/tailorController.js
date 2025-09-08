@@ -1,4 +1,18 @@
 const Tailor = require('../models/tailor');
+const multer = require('multer');
+const Tesseract = require('tesseract.js');
+const cloudinary = require('cloudinary').v2;
+
+// Configure Cloudinary (expects env vars present like vendor-service)
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+}
+
+const upload = multer({ storage: multer.memoryStorage() });
 const bcrypt = require('bcryptjs');
 const { validateEmailForRegistration } = require('../utils/emailValidation');
 const { generateVerificationToken, sendVerificationEmail } = require('../utils/emailService');
@@ -281,3 +295,79 @@ module.exports = {
   updateTailorByEmail,
   deleteTailorByEmail
 }; 
+
+// Aadhaar verification for Tailor
+const verifyAadhaarHandler = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    if (!process.env.CLOUDINARY_CLOUD_NAME) {
+      return res.status(500).json({ success: false, message: 'Cloudinary not configured' });
+    }
+
+    const isPdf = (req.file.mimetype || '').toLowerCase().includes('pdf');
+    const uploadResult = await cloudinary.uploader.upload(
+      `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`,
+      { folder: 'sewnova/tailor-verification', resource_type: 'auto' }
+    );
+
+    let imageUrl = uploadResult.secure_url;
+    if (isPdf) {
+      imageUrl = cloudinary.url(uploadResult.public_id, { secure: true, format: 'jpg', page: 1 });
+    }
+
+    const { data: ocr } = await Tesseract.recognize(imageUrl, 'eng');
+    const text = ocr?.text || '';
+
+    const aadhaarRegex = /(\d{4}[\s-]?\d{4}[\s-]?\d{4})/;
+    const nameRegex = /(?:(?:Name|NAME)\s*:?\s*)([A-Za-z ]{3,})/;
+    const dobRegex = /(?:(?:DOB|D\.O\.B|Date of Birth)\s*:?\s*)(\d{2}[\/\-]\d{2}[\/\-]\d{4})/i;
+    const genderRegex = /(Male|Female|MALE|FEMALE)/;
+
+    const rawAadhaar = (text.match(aadhaarRegex) || [])[1] || '';
+    const normalizedAadhaar = rawAadhaar.replace(/\D/g, '');
+    const parsed = {
+      aadhaarNumber: normalizedAadhaar,
+      name: ((text.match(nameRegex) || [])[1] || '').trim(),
+      dob: (text.match(dobRegex) || [])[1] || '',
+      gender: ((text.match(genderRegex) || [])[1] || '').toLowerCase()
+    };
+
+    const expectedName = (req.body?.expectedName || '').trim();
+    const normalizeName = (n) => n.toLowerCase().replace(/[^a-z]/g, '');
+    const namesMatch = expectedName && parsed.name
+      ? normalizeName(parsed.name) === normalizeName(expectedName)
+      : false;
+
+    const isAadhaarValid = normalizedAadhaar.length === 12;
+    const hasDob = Boolean(parsed.dob);
+    const hasGender = parsed.gender === 'male' || parsed.gender === 'female';
+    const status = (isAadhaarValid && hasDob && hasGender && namesMatch) ? 'verified' : 'rejected';
+
+    const tailor = await Tailor.findByIdAndUpdate(
+      req.user._id,
+      {
+        isVerified: status === 'verified',
+        aadhaar: {
+          number: parsed.aadhaarNumber || '',
+          name: parsed.name || '',
+          dob: parsed.dob || '',
+          gender: parsed.gender || '',
+          documentPublicId: uploadResult.public_id,
+          documentUrl: imageUrl,
+          status
+        }
+      },
+      { new: true }
+    ).select('-password');
+
+    return res.status(201).json({ success: true, data: { parsed: { aadhaarNumber: parsed.aadhaarNumber, dob: parsed.dob, gender: parsed.gender }, status, tailor } });
+  } catch (error) {
+    console.error('Tailor Aadhaar verification error:', error);
+    return res.status(500).json({ success: false, message: 'Verification failed', error: error.message });
+  }
+};
+
+module.exports.verifyAadhaar = [upload.single('file'), verifyAadhaarHandler];

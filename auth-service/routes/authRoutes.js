@@ -17,6 +17,9 @@ router.post('/get-role', authController.getUserRole);
 // Route to validate token and get user info (no blacklist check)
 router.get('/validate-token', authController.validateToken);
 
+// Route to verify token (alias for validate-token)
+router.get('/verify', authController.validateToken);
+
 // Route to handle user logout (no blacklist check)
 router.post('/logout', authController.logoutUser);
 

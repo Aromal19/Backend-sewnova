@@ -81,9 +81,23 @@ const tailorSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  shopImage: {
+    type: String,
+    default: ''
+  },
   isVerified: {
     type: Boolean,
     default: false
+  },
+  // Aadhaar verification details
+  aadhaar: {
+    number: { type: String, default: '' },
+    name: { type: String, default: '' },
+    dob: { type: String, default: '' },
+    gender: { type: String, default: '' },
+    documentPublicId: { type: String, default: '' },
+    documentUrl: { type: String, default: '' },
+    status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' }
   },
   rating: {
     type: Number,
