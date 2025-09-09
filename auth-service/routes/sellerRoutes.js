@@ -11,6 +11,7 @@ router.get('/profile', auth, sellerController.getProfile);
 router.put('/update-profile', auth, sellerController.updateProfile);
 router.put('/change-password', auth, sellerController.changePassword);
 router.delete('/account', auth, sellerController.deleteAccount);
+router.put('/:id/verify', auth, sellerController.updateVerification);
 
 // Email-based routes (for account manipulation using email)
 router.get('/email/:email', sellerController.getSellerByEmail);

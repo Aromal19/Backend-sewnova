@@ -223,7 +223,65 @@ const verifyAadhaarHandler = async (req, res) => {
       status
     });
 
-    return res.status(201).json({ success: true, data: { id: verification._id, parsed: { aadhaarNumber: parsed.aadhaarNumber, dob: parsed.dob, gender: parsed.gender }, status } });
+    // Update seller document with Aadhar data and verification status via auth-service
+    const axios = require('axios');
+    const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
+    
+    try {
+      const updateResponse = await axios.put(
+        `${authServiceUrl}/api/sellers/${req.user.userId}/verify`,
+        {
+          isVerified: status === 'verified',
+          aadhaar: {
+            number: parsed.aadhaarNumber || '',
+            name: parsed.name || '',
+            dob: parsed.dob || '',
+            gender: parsed.gender || '',
+            documentPublicId: uploadResult.public_id,
+            documentUrl: imageUrl,
+            status
+          }
+        },
+        {
+          headers: {
+            'Authorization': req.headers.authorization,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      const seller = updateResponse.data.data;
+
+      return res.status(201).json({ 
+        success: true, 
+        data: { 
+          id: verification._id, 
+          parsed: { 
+            aadhaarNumber: parsed.aadhaarNumber, 
+            dob: parsed.dob, 
+            gender: parsed.gender 
+          }, 
+          status,
+          seller: seller
+        } 
+      });
+    } catch (updateError) {
+      console.error('Failed to update seller verification in auth-service:', updateError.message);
+      // Still return verification success even if auth-service update fails
+      return res.status(201).json({ 
+        success: true, 
+        data: { 
+          id: verification._id, 
+          parsed: { 
+            aadhaarNumber: parsed.aadhaarNumber, 
+            dob: parsed.dob, 
+            gender: parsed.gender 
+          }, 
+          status,
+          message: 'Verification completed but seller update failed'
+        } 
+      });
+    }
   } catch (error) {
     console.error('Aadhaar verification error:', error);
     return res.status(500).json({ success: false, message: 'Verification failed', error: error.message });

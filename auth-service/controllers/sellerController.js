@@ -263,6 +263,42 @@ const deleteSellerByEmail = async (req, res) => {
   }
 };
 
+// Update seller verification status (called by vendor-service)
+const updateVerification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { isVerified, aadhaar } = req.body;
+
+    const seller = await Seller.findByIdAndUpdate(
+      id,
+      {
+        isVerified,
+        aadhaar
+      },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!seller) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Seller not found' 
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Seller verification updated successfully',
+      data: seller
+    });
+  } catch (error) {
+    console.error('Update seller verification error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error' 
+    });
+  }
+};
+
 module.exports = {
   register,
   getProfile,
@@ -273,5 +309,6 @@ module.exports = {
   getSellerById,
   getSellerByEmail,
   updateSellerByEmail,
-  deleteSellerByEmail
+  deleteSellerByEmail,
+  updateVerification
 }; 

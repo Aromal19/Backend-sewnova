@@ -94,6 +94,37 @@ const sellerSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  aadhaar: {
+    number: {
+      type: String,
+      default: ''
+    },
+    name: {
+      type: String,
+      default: ''
+    },
+    dob: {
+      type: String,
+      default: ''
+    },
+    gender: {
+      type: String,
+      default: ''
+    },
+    documentPublicId: {
+      type: String,
+      default: ''
+    },
+    documentUrl: {
+      type: String,
+      default: ''
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'verified', 'rejected'],
+      default: 'pending'
+    }
+  },
   rating: {
     type: Number,
     default: 0,
