@@ -235,8 +235,22 @@ const updateProfile = async (req, res) => {
     const updates = req.body;
     const userId = req.user._id;
     const allowedUpdates = [
-      'firstName', 'lastName', 'phone', 'countryCode', 'address'
+      'firstName', 'lastName', 'email', 'phone', 'countryCode', 'address', 'city', 'state', 'pincode', 'preferences', 'gender'
     ];
+
+    // Get current customer to check email verification status
+    const currentCustomer = await Customer.findById(userId);
+    if (!currentCustomer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+
+    // Prevent verified email updates
+    if (updates.email && currentCustomer.isEmailVerified && updates.email !== currentCustomer.email) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Cannot update verified email address. Please contact support if you need to change your email.' 
+      });
+    }
 
     // Filter out non-allowed fields
     const filteredUpdates = {};
@@ -248,6 +262,13 @@ const updateProfile = async (req, res) => {
         else filteredUpdates[key] = updates[key];
       }
     });
+
+    // If email is being updated and it's different from current email, reset verification status
+    if (updates.email && updates.email !== currentCustomer.email) {
+      filteredUpdates.isEmailVerified = false;
+      filteredUpdates.emailVerificationToken = null;
+      filteredUpdates.emailVerificationTokenExpires = null;
+    }
 
     const customer = await Customer.findByIdAndUpdate(
       userId,

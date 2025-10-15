@@ -51,5 +51,33 @@ router.get('/tailors', async (req, res) => {
   }
 });
 
+// Public: get single tailor by ID (for customers viewing tailor details)
+router.get('/tailors/:id', async (req, res) => {
+  try {
+    const tailor = await Tailor.findOne({
+      _id: req.params.id,
+      isVerified: true
+    }).select('-password -emailVerificationToken -emailVerificationTokenExpires -aadhaar.number -aadhaar.documentPublicId');
+
+    if (!tailor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Tailor not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: tailor
+    });
+  } catch (error) {
+    console.error('Public tailor fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch tailor'
+    });
+  }
+});
+
 module.exports = router;
 

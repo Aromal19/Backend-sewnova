@@ -1,6 +1,7 @@
 const Customer = require('../models/customer');
 const Tailor = require('../models/tailor');
 const Seller = require('../models/seller');
+const Admin = require('../models/admin');
 const RefreshToken = require('../models/refreshToken');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -22,10 +23,11 @@ const loginUser = async (req, res) => {
     if (user) { userRole = 'customer'; UserModel = Customer; }
     if (!user) { user = await Tailor.findOne({ email: email.toLowerCase() }); if (user) { userRole = 'tailor'; UserModel = Tailor; } }
     if (!user) { user = await Seller.findOne({ email: email.toLowerCase() }); if (user) { userRole = 'seller'; UserModel = Seller; } }
+    if (!user) { user = await Admin.findOne({ email: email.toLowerCase() }); if (user) { userRole = 'admin'; UserModel = Admin; } }
     if (!user) { return res.status(401).json({ success: false, message: 'Invalid email or password' }); }
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) { return res.status(401).json({ success: false, message: 'Invalid email or password' }); }
-    if (!user.isGoogleUser && !user.isEmailVerified) {
+    if (!user.isGoogleUser && !user.isEmailVerified && userRole !== 'admin') {
       return res.status(401).json({ success: false, message: 'Please verify your email address before logging in. Check your inbox for the verification link.', requiresEmailVerification: true, email: user.email, userType: userRole });
     }
     // Generate tokens
@@ -55,6 +57,10 @@ const loginUser = async (req, res) => {
       userResponse.rating = user.rating;
       userResponse.totalSales = user.totalSales;
       userResponse.productsCount = user.productsCount;
+    } else if (userRole === 'admin') {
+      userResponse.permissions = user.permissions;
+      userResponse.isActive = user.isActive;
+      userResponse.lastLogin = user.lastLogin;
     }
     // Set refresh token as HttpOnly cookie
     res.cookie('refreshToken', refreshTokenDoc.token, {
@@ -180,6 +186,11 @@ const validateToken = async (req, res) => {
         break;
       case 'seller':
         UserModel = Seller;
+        break;
+      case 'admin':
+        // For admin users, we need to import the Admin model
+        const Admin = require('../models/admin');
+        UserModel = Admin;
         break;
       default:
         return res.status(400).json({

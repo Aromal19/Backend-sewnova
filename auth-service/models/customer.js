@@ -57,6 +57,11 @@ const customerSchema = new mongoose.Schema({
   },
 
   // Additional profile fields (optional, filled later)
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other', 'prefer-not-to-say'],
+    default: null
+  },
   address: {
     type: String,
     default: ''

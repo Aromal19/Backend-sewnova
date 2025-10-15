@@ -104,5 +104,72 @@ router.get('/products', async (req, res) => {
   }
 });
 
+// Public: get single product by ID (for customers viewing product details)
+router.get('/products/:id', async (req, res) => {
+  try {
+    const product = await Product.findOne({
+      _id: req.params.id,
+      isActive: true
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Get seller information from auth-service
+    const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3001';
+    
+    let seller = null;
+    try {
+      const response = await axios.get(`${authServiceUrl}/api/sellers/${product.sellerId}`);
+      seller = response.data.seller;
+    } catch (error) {
+      console.error(`Failed to fetch seller ${product.sellerId}:`, error.message);
+    }
+
+    // Transform product to include seller information
+    const productWithSeller = {
+      ...product.toObject(),
+      seller: seller ? {
+        _id: seller._id,
+        name: seller.businessName || `${seller.firstname} ${seller.lastname}`,
+        businessName: seller.businessName,
+        businessType: seller.businessType,
+        isVerified: seller.isVerified,
+        aadhaarVerified: seller.aadhaar?.status === 'verified',
+        rating: seller.rating,
+        totalSales: seller.totalSales,
+        profileImage: seller.profileImage,
+        location: seller.address ? `${seller.district}, ${seller.state}` : 'Location not specified'
+      } : {
+        _id: product.sellerId,
+        name: 'Unknown Seller',
+        businessName: 'Unknown Business',
+        businessType: 'Unknown',
+        isVerified: false,
+        aadhaarVerified: false,
+        rating: 0,
+        totalSales: 0,
+        profileImage: '',
+        location: 'Location not specified'
+      }
+    };
+
+    res.json({
+      success: true,
+      data: productWithSeller
+    });
+  } catch (error) {
+    console.error('Public product fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch product'
+    });
+  }
+});
+
 module.exports = router;
 

@@ -12,6 +12,9 @@ router.post('/', addressController.createAddress);
 // Get all addresses for the current customer
 router.get('/', addressController.getAddresses);
 
+// Get default address for the current customer
+router.get('/default', addressController.getDefaultAddress);
+
 // Update an address by id
 router.put('/:id', addressController.updateAddress);
 

@@ -41,6 +41,11 @@ const authMiddleware = async (req, res, next) => {
       case 'seller':
         UserModel = Seller;
         break;
+      case 'admin':
+        // For admin users, we need to import the Admin model
+        const Admin = require('../models/admin');
+        UserModel = Admin;
+        break;
       default:
         return res.status(400).json({
           success: false,

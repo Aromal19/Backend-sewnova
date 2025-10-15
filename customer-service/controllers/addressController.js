@@ -99,9 +99,37 @@ const getAddresses = async (req, res) => {
   }
 };
 
+// Get default address for the current customer
+const getDefaultAddress = async (req, res) => {
+  try {
+    const customerId = req.user.id;
+    
+    if (!customerId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User ID not found in token'
+      });
+    }
+
+    const defaultAddress = await Address.findOne({ customerId, isDefault: true });
+    
+    res.json({
+      success: true,
+      data: defaultAddress
+    });
+  } catch (error) {
+    console.error('Error fetching default address:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch default address'
+    });
+  }
+};
+
 module.exports = {
   createAddress,
   getAddresses,
+  getDefaultAddress,
   // Update an existing address
   updateAddress: async (req, res) => {
     try {
