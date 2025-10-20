@@ -1,5 +1,41 @@
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/admin');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for profile picture uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/admin-profiles';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'admin-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|gif/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'));
+    }
+  }
+});
 
 // Admin login
 const login = async (req, res) => {
@@ -70,14 +106,28 @@ const getProfile = async (req, res) => {
 // Update admin profile
 const updateProfile = async (req, res) => {
   try {
-    const { name, email } = req.body;
+    const { name } = req.body;
     const adminId = req.admin._id;
 
     const updateData = {};
     if (name) updateData.name = name;
-    if (email) updateData.email = email.toLowerCase();
+    
+    // Handle profile picture upload
+    if (req.file) {
+      // Delete old profile picture if exists
+      const admin = await Admin.findById(adminId);
+      if (admin.profilePicture) {
+        const oldImagePath = path.join(__dirname, '..', admin.profilePicture);
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+        }
+      }
+      
+      // Set new profile picture path
+      updateData.profilePicture = `/uploads/admin-profiles/${req.file.filename}`;
+    }
 
-    const admin = await Admin.findByIdAndUpdate(
+    const updatedAdmin = await Admin.findByIdAndUpdate(
       adminId,
       updateData,
       { new: true, runValidators: true }
@@ -86,7 +136,7 @@ const updateProfile = async (req, res) => {
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      data: admin
+      data: updatedAdmin
     });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -154,5 +204,6 @@ module.exports = {
   getProfile,
   updateProfile,
   changePassword,
-  getDashboardStats
+  getDashboardStats,
+  upload
 };

@@ -59,31 +59,95 @@ const tailorSchema = new mongoose.Schema({
   },
   specialization: {
     type: [String],
-    default: []
+    default: [],
+    validate: {
+      validator: function(arr) {
+        return arr.every(item => typeof item === 'string');
+      },
+      message: 'Specialization must be an array of strings'
+    }
   },
-  address: {
-    type: String
+  
+  // Shop Address Fields (Structured)
+  addressLine: {
+    type: String,
+    trim: true,
+    maxlength: [200, 'Address line cannot exceed 200 characters']
   },
-  pincode: {
-    type: String
+  landmark: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Landmark cannot exceed 100 characters']
+  },
+  locality: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Locality cannot exceed 100 characters']
+  },
+  city: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'City name cannot exceed 50 characters']
   },
   district: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: [50, 'District name cannot exceed 50 characters']
   },
   state: {
-    type: String
+    type: String,
+    trim: true,
+    maxlength: [50, 'State name cannot exceed 50 characters']
+  },
+  pincode: {
+    type: String,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return !v || /^\d{6}$/.test(v); // Either empty or 6 digits
+      },
+      message: 'Pincode must be exactly 6 digits'
+    }
   },
   country: {
     type: String,
-    default: 'India'
+    trim: true,
+    default: 'India',
+    maxlength: [50, 'Country name cannot exceed 50 characters']
   },
+  
+  // Additional Profile Fields
+  workingHours: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Working hours cannot exceed 100 characters']
+  },
+  about: {
+    type: String,
+    trim: true,
+    maxlength: [1000, 'About section cannot exceed 1000 characters']
+  },
+  portfolio: {
+    type: [String],
+    default: [],
+    validate: {
+      validator: function(arr) {
+        return arr.length <= 10; // Max 10 portfolio images
+      },
+      message: 'Portfolio cannot have more than 10 images'
+    }
+  },
+  
+  // Images
   profileImage: {
     type: String,
-    default: ''
+    default: '',
+    trim: true
   },
   shopImage: {
     type: String,
-    default: ''
+    default: '',
+    trim: true
   },
   isVerified: {
     type: Boolean,
@@ -113,7 +177,70 @@ const tailorSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 });
+
+// Indexes for better query performance
+tailorSchema.index({ email: 1 });
+tailorSchema.index({ phone: 1 });
+tailorSchema.index({ shopName: 1 });
+tailorSchema.index({ city: 1, state: 1 }); // For location-based searches
+tailorSchema.index({ pincode: 1 }); // For pincode-based searches
+tailorSchema.index({ specialization: 1 }); // For specialization filtering
+tailorSchema.index({ isVerified: 1 }); // For filtering verified tailors
+tailorSchema.index({ rating: -1 }); // For sorting by rating
+
+// Virtual field for full formatted address
+tailorSchema.virtual('fullAddress').get(function() {
+  const parts = [];
+  
+  if (this.addressLine) parts.push(this.addressLine);
+  if (this.landmark) parts.push(`Landmark: ${this.landmark}`);
+  if (this.locality) parts.push(this.locality);
+  
+  const cityStateParts = [this.city, this.district, this.state, this.pincode]
+    .filter(Boolean);
+  
+  if (cityStateParts.length > 0) {
+    parts.push(cityStateParts.join(', '));
+  }
+  
+  if (this.country && this.country !== 'India') {
+    parts.push(this.country);
+  }
+  
+  return parts.length > 0 ? parts.join('\n') : 'No address provided';
+});
+
+// Virtual field for display name
+tailorSchema.virtual('displayName').get(function() {
+  return `${this.firstname} ${this.lastname}`;
+});
+
+// Update the updatedAt timestamp before saving
+tailorSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+tailorSchema.pre('findOneAndUpdate', function(next) {
+  this.set({ updatedAt: new Date() });
+  next();
+});
+
+// Ensure virtuals are included when converting to JSON
+tailorSchema.set('toJSON', {
+  virtuals: true,
+  transform: function(doc, ret) {
+    delete ret.__v;
+    return ret;
+  }
+});
+
+tailorSchema.set('toObject', { virtuals: true });
 
 module.exports = mongoose.model('Tailor', tailorSchema); 

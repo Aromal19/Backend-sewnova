@@ -4,11 +4,20 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Debug environment variables
+console.log('🔧 Environment Variables Check:');
+console.log('CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'Set' : 'Not set');
+console.log('CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'Set' : 'Not set');
+console.log('CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'Set' : 'Not set');
+console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Set' : 'Not set');
+
 const app = express();
 const PORT = process.env.PORT || 3006;
 
 // Import routes
 const designRoutes = require('./routes/designRoutes');
+const measurementRoutes = require('./routes/measurementRoutes');
+const sizingRoutes = require('./routes/sizingRoutes');
 
 // CORS configuration
 app.use(cors({
@@ -16,10 +25,13 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting - more permissive for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
@@ -58,6 +70,8 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/designs', designRoutes);
+app.use('/api/measurements', measurementRoutes);
+app.use('/api/sizing', sizingRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -84,6 +98,8 @@ const startServer = async () => {
     console.log(`🚀 Design Service running on port ${PORT}`);
     console.log(`📡 Health check: http://localhost:${PORT}/health`);
     console.log(`🎨 Designs API: http://localhost:${PORT}/api/designs`);
+    console.log(`📏 Measurements API: http://localhost:${PORT}/api/measurements`);
+    console.log(`📐 Sizing API: http://localhost:${PORT}/api/sizing`);
   });
 };
 

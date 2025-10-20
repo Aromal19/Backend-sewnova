@@ -114,6 +114,34 @@ const customerOnly = (req, res, next) => {
 };
 
 /**
+ * Role-based middleware for tailors only
+ */
+const tailorOnly = (req, res, next) => {
+  console.log('✂️ Tailor Only Middleware: Checking user role...');
+  
+  if (!req.user) {
+    console.log('❌ No user found in request');
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  console.log('👤 User role:', req.user.role);
+
+  if (req.user.role === 'tailor') {
+    console.log('✅ Tailor access granted');
+    next();
+  } else {
+    console.log('❌ Access denied: Not a tailor');
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Tailor role required.'
+    });
+  }
+};
+
+/**
  * Allow both customers and tailors
  */
 const customerOrTailor = (req, res, next) => {
@@ -180,6 +208,7 @@ const optionalAuth = async (req, res, next) => {
 module.exports = {
   authMiddleware,
   customerOnly,
+  tailorOnly,
   customerOrTailor,
   optionalAuth
 }; 

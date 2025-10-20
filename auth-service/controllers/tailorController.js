@@ -21,7 +21,10 @@ const { generateAccessToken, generateRefreshToken, REFRESH_TOKEN_EXPIRES_IN } = 
 // Register a new tailor
 const register = async (req, res) => {
   try {
-    const { firstname, lastname, email, phone, countryCode, password, shopName, experience, specialization, address, pincode, district, state, country } = req.body;
+    const { 
+      firstname, lastname, email, phone, countryCode, password, shopName, experience, specialization,
+      addressLine, landmark, locality, city, district, state, pincode, country
+    } = req.body;
     const emailValidation = await validateEmailForRegistration(email);
     if (!emailValidation.isValid) {
       return res.status(400).json({ success: false, message: emailValidation.message });
@@ -42,10 +45,13 @@ const register = async (req, res) => {
       shopName,
       experience,
       specialization,
-      address,
-      pincode,
+      addressLine,
+      landmark,
+      locality,
+      city,
       district,
       state,
+      pincode,
       country
     });
     const verificationToken = generateVerificationToken();
@@ -103,54 +109,98 @@ const getProfile = async (req, res) => {
 const updateProfile = async (req, res) => {
   try {
     const updates = req.body;
+    console.log('📝 Received profile update request:', {
+      userId: req.user._id,
+      updates: { ...updates, password: undefined } // Log without password
+    });
+
     const allowedUpdates = [
-      'firstName', 'lastName', 'email', 'phone', 'countryCode', 'shopName', 'shopAddress',
+      'firstName', 'lastName', 'email', 'phone', 'countryCode', 'shopName',
+      'addressLine', 'landmark', 'locality', 'city', 'district', 'state', 'pincode', 'country',
       'experience', 'speciality', 'workingHours', 'about', 'skills'
     ];
 
     // Get current tailor to check email verification status
     const currentTailor = await Tailor.findById(req.user._id);
     if (!currentTailor) {
+      console.error('❌ Tailor not found:', req.user._id);
       return res.status(404).json({ success: false, message: 'Tailor not found' });
     }
 
     // Prevent verified email updates
     if (updates.email && currentTailor.isEmailVerified && updates.email !== currentTailor.email) {
+      console.warn('⚠️ Attempt to update verified email:', { 
+        currentEmail: currentTailor.email, 
+        newEmail: updates.email 
+      });
       return res.status(400).json({ 
         success: false, 
         message: 'Cannot update verified email address. Please contact support if you need to change your email.' 
       });
     }
 
-    // Filter out non-allowed fields
+    // Filter out non-allowed fields and map field names
     const filteredUpdates = {};
     Object.keys(updates).forEach(key => {
       if (allowedUpdates.includes(key)) {
         // Map frontend field names to database field names
         if (key === 'firstName') filteredUpdates.firstname = updates[key];
         else if (key === 'lastName') filteredUpdates.lastname = updates[key];
-        else if (key === 'shopAddress') filteredUpdates.address = updates[key];
         else if (key === 'speciality') filteredUpdates.specialization = updates[key];
         else filteredUpdates[key] = updates[key];
       }
     });
 
+    // If new address fields are provided, remove the old 'address' field
+    if (filteredUpdates.addressLine || filteredUpdates.locality || filteredUpdates.city) {
+      console.log('📍 New address structure detected, removing old address field');
+      filteredUpdates.address = null; // Remove old address field
+    }
+
+    console.log('✅ Filtered updates to apply:', JSON.stringify(filteredUpdates, null, 2));
+
     // If email is being updated and it's different from current email, reset verification status
     if (updates.email && updates.email !== currentTailor.email) {
+      console.log('📧 Email changed, resetting verification status');
       filteredUpdates.isEmailVerified = false;
       filteredUpdates.emailVerificationToken = null;
       filteredUpdates.emailVerificationTokenExpires = null;
     }
 
+    // Use $set for updates and $unset to remove old address field if needed
+    const updateOperation = {
+      $set: filteredUpdates
+    };
+    
+    // Remove the old address field if new structured fields are provided
+    if (filteredUpdates.addressLine || filteredUpdates.locality) {
+      updateOperation.$unset = { address: "" };
+      delete filteredUpdates.address; // Remove from $set
+    }
+
     const tailor = await Tailor.findByIdAndUpdate(
       req.user._id,
-      filteredUpdates,
+      updateOperation,
       { new: true, runValidators: true }
     ).select('-password');
 
     if (!tailor) {
+      console.error('❌ Tailor profile not found after update');
       return res.status(404).json({ success: false, message: 'Tailor profile not found' });
     }
+
+    console.log('✅ Profile updated successfully:', {
+      id: tailor._id,
+      shopName: tailor.shopName,
+      address: {
+        addressLine: tailor.addressLine,
+        locality: tailor.locality,
+        city: tailor.city,
+        district: tailor.district,
+        state: tailor.state,
+        pincode: tailor.pincode
+      }
+    });
 
     res.json({
       success: true,
@@ -158,8 +208,12 @@ const updateProfile = async (req, res) => {
       tailor
     });
   } catch (error) {
-    console.error('Update tailor profile error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    console.error('❌ Update tailor profile error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
@@ -255,8 +309,8 @@ const updateTailorByEmail = async (req, res) => {
     const updates = req.body;
     const allowedUpdates = [
       'firstname', 'lastname', 'phone', 'shopName', 'experience',
-      'specialization', 'address', 'pincode', 'district', 'state',
-      'country', 'profileImage'
+      'specialization', 'addressLine', 'landmark', 'locality', 'city',
+      'district', 'state', 'pincode', 'country', 'profileImage'
     ];
 
     // Filter out non-allowed fields

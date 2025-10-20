@@ -8,7 +8,7 @@ router.post('/login', adminController.login);
 
 // Protected routes (auth required)
 router.get('/profile', auth.authMiddleware, auth.adminOnly, adminController.getProfile);
-router.put('/profile', auth.authMiddleware, auth.adminOnly, adminController.updateProfile);
+router.put('/profile', auth.authMiddleware, auth.adminOnly, adminController.upload.single('profilePicture'), adminController.updateProfile);
 router.put('/change-password', auth.authMiddleware, auth.adminOnly, adminController.changePassword);
 router.get('/dashboard-stats', auth.authMiddleware, auth.adminOnly, adminController.getDashboardStats);
 

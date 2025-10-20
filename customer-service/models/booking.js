@@ -53,7 +53,12 @@ const bookingSchema = new mongoose.Schema({
   measurementId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Measurement',
-    required: true
+    required: false
+  },
+  // Dynamic measurement snapshot captured during booking (stored on confirmation)
+  measurementSnapshot: {
+    type: Object,
+    default: null
   },
   
   // Order details
@@ -123,6 +128,25 @@ const bookingSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Address',
     required: true
+  },
+  
+  // Payment info
+  payment: {
+    status: {
+      type: String,
+      enum: ['pending', 'paid', 'failed'],
+      default: 'pending'
+    },
+    method: {
+      type: String,
+      enum: ['razorpay', 'cod', 'other'],
+      default: 'razorpay'
+    },
+    gatewayOrderId: String,
+    gatewayPaymentId: String,
+    gatewaySignature: String,
+    paidAmount: { type: Number, default: 0 },
+    paidAt: Date
   },
   
   // Status tracking

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
+const multer = require('multer');
 require('dotenv').config();
 
 const app = express();
@@ -12,8 +13,29 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5173',
   credentials: true
 }));
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+    files: 10 // Maximum 10 files
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Serve static files for profile pictures
+app.use('/uploads', express.static('uploads'));
 
 // Rate limiter
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
@@ -33,8 +55,9 @@ const auth = require('./middleware/authMiddleware');
 // Routes
 const adminRoutes = require('./routes/adminRoutes');
 const userRoutes = require('./routes/userRoutes');
-const designRoutes = require('./routes/designRoutes');
+const designRoutes = require('./routes/designRoutesDirect'); // Use direct design routes
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const measurementRoutes = require('./routes/measurementRoutes');
 
 // Health check
 app.get('/health', (req, res) => {
@@ -47,6 +70,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/users', auth.authMiddleware, auth.adminOnly, userRoutes);
 app.use('/api/designs', auth.authMiddleware, auth.adminOnly, designRoutes);
 app.use('/api/analytics', auth.authMiddleware, auth.adminOnly, analyticsRoutes);
+app.use('/api/measurements', measurementRoutes); // Measurement routes
 
 // Error handling middleware
 app.use((err, req, res, next) => {

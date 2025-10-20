@@ -10,19 +10,30 @@ const designSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Design category is required'],
-    enum: ['formal', 'casual', 'traditional', 'western', 'ethnic', 'party', 'wedding', 'office'],
+    enum: ['Men', 'Women', 'Unisex'],
     trim: true
   },
-  image: {
+  images: [{
     type: String,
-    required: [true, 'Design image is required'],
+    required: [true, 'Design images are required'],
     trim: true
-  },
+  }],
   description: {
     type: String,
     trim: true,
     maxlength: [500, 'Description cannot exceed 500 characters']
   },
+  requiredMeasurements: [{
+    type: String,
+    trim: true,
+    validate: {
+      validator: function(measurementId) {
+        // This will be validated in the controller using globalMeasurements
+        return measurementId && measurementId.length > 0;
+      },
+      message: 'Measurement ID cannot be empty'
+    }
+  }],
   // tailorIds: [{
   //   type: mongoose.Schema.Types.ObjectId,
   //   ref: 'Tailor'
@@ -41,10 +52,6 @@ const designSchema = new mongoose.Schema({
     min: [0, 'Estimated time cannot be negative']
   },
   tags: [{
-    type: String,
-    trim: true
-  }],
-  sizeCriteria: [{
     type: String,
     trim: true
   }],

@@ -9,7 +9,8 @@ const {
   updateBookingStatus,
   completeBooking,
   updatePaymentStatus,
-  addBookingReview
+  addBookingReview,
+  handlePaymentSuccess
 } = require('../controllers/bookingController');
 
 // Get all bookings for the authenticated customer
@@ -38,5 +39,8 @@ router.patch('/:id/payment', updatePaymentStatus);
 
 // Add review to booking
 router.post('/:id/review', addBookingReview);
+
+// Handle payment success (called by payment service)
+router.put('/:bookingId/payment-success', handlePaymentSuccess);
 
 module.exports = router; 

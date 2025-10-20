@@ -35,7 +35,11 @@ const adminSchema = new mongoose.Schema({
   permissions: [{
     type: String,
     enum: ['users', 'designs', 'analytics', 'orders', 'settings']
-  }]
+  }],
+  profilePicture: {
+    type: String,
+    default: null
+  }
 }, {
   timestamps: true
 });
