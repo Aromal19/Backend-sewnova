@@ -1,0 +1,216 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: sewnova-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: sewnova
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb-init:/docker-entrypoint-initdb.d
+    networks:
+      - sewnova-network
+
+  # Auth Service
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: sewnova-auth
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - JWT_SECRET=b8d2f8b9c24a17e1d1e1a2f6b5c3a8791e9b47a1e3c38a7216e7bbf7f28d194d
+      - JWT_REFRESH_SECRET=your_refresh_secret_here
+      - GOOGLE_CLIENT_ID=648036319844-qp2nk1cg25ukh0j9ritk0mtbslbbccqk.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=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9ritk0mtbslbbccqk.apps.googleusercontent.com
+      - EMAIL_SERVICE_API_KEY=${EMAIL_SERVICE_API_KEY}
+      - EMAIL_FROM=aromalgirish00@gmail.com
+      - FRONTEND_URL=http://localhost:5173
+      - LOG_LEVEL=${LOG_LEVEL}
+    depends_on:
+      - mongodb
+    networks:
+      - sewnova-network
+
+  # Customer Service
+  customer-service:
+    build:
+      context: ./customer-service
+      dockerfile: Dockerfile
+    container_name: sewnova-customer
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - FRONTEND_URL=http://localhost:5173
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - LOG_LEVEL=info
+      - JWT_SECRET=b8d2f8b9c24a17e1d1e1a2f6b5c3a8791e9b47a1e3c38a7216e7bbf7f28d194d
+      - CLOUDINARY_CLOUD_NAME=dshizq6va
+      - CLOUDINARY_API_KEY=593971394352412
+      - CLOUDINARY_API_SECRET=G1Td4t6yRZV7YdAeFgHjKmNoQrStUvWxY2Z5a8d10f
+      - CLOUDINARY_URL=https://api.cloudinary.com/
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - sewnova-network
+
+  # Admin Service
+  admin-service:
+    build:
+      context: ./admin-service
+      dockerfile: Dockerfile
+    container_name: sewnova-admin
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - FRONTEND_URL=http://localhost:5173
+      - JWT_SECRET=b8d2f8b9c24a17e1d1e1a2f6b5c3a8791e9b47a1e3c38a7216e7bbf7f28d194d
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - sewnova-network
+
+  # Design Service
+  design-service:
+    build:
+      context: ./design-service
+      dockerfile: Dockerfile
+    container_name: sewnova-design
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=593971394352412
+      - CLOUDINARY_API_SECRET=G1Td4t6yRZV7YdAeFgHjKmNoQrStUvWxY2Z5a8d10f
+      - CLOUDINARY_URL=https://api.cloudinary.com/
+      - FRONTEND_URL=http://localhost:5173
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+    networks:
+      - sewnova-network
+
+  # Tailor Service
+  tailor-service:
+    build:
+      context: ./tailor-service
+      dockerfile: Dockerfile
+    container_name: sewnova-tailor
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - FRONTEND_URL=http://localhost:5173
+      - JWT_SECRET=b8d2f8b9c24a17e1d1e1a2f6b5c3a8791e9b47a1e3c38a7216e7bbf7f28d194d
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - sewnova-network
+
+  # Vendor Service
+  vendor-service:
+    build:
+      context: ./vendor-service
+      dockerfile: Dockerfile
+    container_name: sewnova-vendor
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    environment:
+      - NODE_ENV=production
+      - PORT=3006
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - FRONTEND_URL=http://localhost:5173
+      - JWT_SECRET=b8d2f8b9c24a17e1d1e1a2f6b5c3a8791e9b47a1e3c38a7216e7bbf7f28d194d
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - sewnova-network
+
+  # Payment Service
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: sewnova-payment
+    restart: unless-stopped
+    ports:
+      - "3007:3007"
+    environment:
+      - NODE_ENV=production
+      - PORT=3007
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - RAZORPAY_KEY_ID=rzp_test_1234567890
+      - RAZORPAY_KEY_SECRET=rzp_test_1234567890
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - FRONTEND_URL=http://localhost:5173
+      - JWT_SECRET=b8d2f8b9c24a17e1d1e1a2f6b5c3a8791e9b47a1e3c38a7216e7bbf7f28d194d
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - sewnova-network
+
+  # Measurement Service (Python AI)
+  measurement-service:
+    build:
+      context: ./measurement-service
+      dockerfile: Dockerfile
+    container_name: sewnova-measurement
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - NODE_ENV=production
+      - PORT=8001
+      - FRONTEND_URL=http://localhost:5173
+      - LOG_LEVEL=info
+    networks:
+      - sewnova-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  sewnova-network:
+    driver: bridge
