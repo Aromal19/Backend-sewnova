@@ -86,6 +86,6 @@ customerSchema.methods.updateRating = function(newRating) {
   return this.save();
 };
 
-const Customer = mongoose.model('Customer', customerSchema);
+const Customer = mongoose.model('CustomerProfile', customerSchema);
 
 module.exports = Customer; 

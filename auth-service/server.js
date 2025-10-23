@@ -15,9 +15,23 @@ const sellerRoutes = require('./routes/sellerRoutes');
 
 const app = express();
 
-// CORS configuration
+// CORS configuration - allow credentials from specific origins
+const allowedOrigins = [
+  'https://frontend-sewnova.vercel.app',
+  'http://localhost:5173'
+];
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser or same-origin
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
+app.options('*', cors({
+  origin: allowedOrigins,
   credentials: true
 }));
 

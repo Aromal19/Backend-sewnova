@@ -19,10 +19,21 @@ const designRoutes = require('./routes/designRoutes');
 const measurementRoutes = require('./routes/measurementRoutes');
 const sizingRoutes = require('./routes/sizingRoutes');
 
-// CORS configuration
+// CORS configuration for credentialed requests
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://frontend-sewnova.vercel.app'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser or same-origin
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Rate limiting - more permissive for development

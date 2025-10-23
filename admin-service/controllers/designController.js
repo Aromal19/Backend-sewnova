@@ -117,7 +117,7 @@ const createDesign = async (req, res) => {
     const uploadedFiles = req.files || [];
 
     // Validate required fields
-    const requiredFields = ['name', 'category'];
+    const requiredFields = ['name', 'category', 'garmentType'];
     const missingFields = requiredFields.filter(field => !designData[field]);
     
     if (missingFields.length > 0) {

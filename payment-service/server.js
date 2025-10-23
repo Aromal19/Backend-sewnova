@@ -7,13 +7,21 @@ const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
-const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+// CORS configuration for credentialed requests
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://frontend-sewnova.vercel.app'
+];
+
 app.use(cors({
-  origin: frontendOrigin,
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true); // allow non-browser or same-origin
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  optionsSuccessStatus: 200
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 // Add COOP headers to fix postMessage issues
@@ -49,7 +57,7 @@ app.get('/api/payments/config-check', (req, res) => {
     keyIdPresent: Boolean(id),
     keySecretPresent: Boolean(secret),
     port: process.env.PORT,
-    frontendOrigin
+    frontendOrigin: 'all'
   });
 });
 

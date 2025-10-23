@@ -6,6 +6,12 @@ const bookingSchema = new mongoose.Schema({
     ref: 'Customer',
     required: true
   },
+  userEmail: {
+    type: String,
+    required: true,
+    trim: true,
+    lowercase: true
+  },
   bookingType: {
     type: String,
     enum: ['tailor', 'fabric', 'complete'],

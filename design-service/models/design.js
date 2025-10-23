@@ -13,6 +13,11 @@ const designSchema = new mongoose.Schema({
     enum: ['Men', 'Women', 'Unisex'],
     trim: true
   },
+  garmentType: {
+    type: String,
+    required: [true, 'Garment type is required'],
+    trim: true
+  },
   images: [{
     type: String,
     required: [true, 'Design images are required'],
@@ -53,7 +58,8 @@ const designSchema = new mongoose.Schema({
   },
   tags: [{
     type: String,
-    trim: true
+    trim: true,
+    enum: ['bridal', 'ethnic', 'casual', 'formal', 'party', 'traditional', 'western', 'fusion', 'wedding', 'festive', 'office', 'sports', 'beach', 'cocktail', 'evening']
   }],
   isActive: {
     type: Boolean,

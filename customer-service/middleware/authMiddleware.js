@@ -142,6 +142,34 @@ const tailorOnly = (req, res, next) => {
 };
 
 /**
+ * Role-based middleware for admin only
+ */
+const adminOnly = (req, res, next) => {
+  console.log('👑 Admin Only Middleware: Checking user role...');
+  
+  if (!req.user) {
+    console.log('❌ No user found in request');
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
+
+  console.log('👤 User role:', req.user.role);
+
+  if (req.user.role === 'admin') {
+    console.log('✅ Admin access granted');
+    next();
+  } else {
+    console.log('❌ Access denied: Not an admin');
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Admin role required.'
+    });
+  }
+};
+
+/**
  * Allow both customers and tailors
  */
 const customerOrTailor = (req, res, next) => {
@@ -152,6 +180,25 @@ const customerOrTailor = (req, res, next) => {
   }
 
   if (req.user.role === 'customer' || req.user.role === 'tailor') {
+    console.log('✅ Access granted for role:', req.user.role);
+    return next();
+  }
+
+  console.log('❌ Access denied: Role not allowed:', req.user.role);
+  return res.status(403).json({ success: false, message: 'Access denied.' });
+};
+
+/**
+ * Allow both admin and tailor roles
+ */
+const adminOrTailor = (req, res, next) => {
+  console.log('👑✂️ AdminOrTailor Middleware: Checking user role...');
+
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: 'Authentication required.' });
+  }
+
+  if (req.user.role === 'admin' || req.user.role === 'tailor') {
     console.log('✅ Access granted for role:', req.user.role);
     return next();
   }
@@ -209,6 +256,8 @@ module.exports = {
   authMiddleware,
   customerOnly,
   tailorOnly,
+  adminOnly,
   customerOrTailor,
+  adminOrTailor,
   optionalAuth
 }; 

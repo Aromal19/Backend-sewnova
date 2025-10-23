@@ -125,9 +125,22 @@ const createDesign = async (req, res) => {
     console.log('🔍 createDesign called in new controller');
     const designData = req.body;
     const uploadedFiles = req.files || [];
+    
+    console.log('📝 Design data received:', {
+      name: designData.name,
+      category: designData.category,
+      garmentType: designData.garmentType,
+      description: designData.description,
+      price: designData.price,
+      difficulty: designData.difficulty,
+      estimatedTime: designData.estimatedTime,
+      tags: designData.tags,
+      requiredMeasurements: designData.requiredMeasurements,
+      imagesCount: uploadedFiles.length
+    });
 
     // Validate required fields
-    const requiredFields = ['name', 'category'];
+    const requiredFields = ['name', 'category', 'garmentType'];
     const missingFields = requiredFields.filter(field => !designData[field]);
     
     if (missingFields.length > 0) {
@@ -151,38 +164,55 @@ const createDesign = async (req, res) => {
       designData.tags = designData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
     }
 
+    // Convert numeric fields
+    if (designData.price && typeof designData.price === 'string') {
+      designData.price = parseFloat(designData.price) || 0;
+    }
+    if (designData.estimatedTime && typeof designData.estimatedTime === 'string') {
+      designData.estimatedTime = parseFloat(designData.estimatedTime) || 0;
+    }
+
     // Handle image uploads to Cloudinary
     let uploadedImages = [];
     if (uploadedFiles.length > 0) {
       console.log(`Processing ${uploadedFiles.length} images for Cloudinary upload...`);
       
-      for (const file of uploadedFiles) {
-        try {
-          const result = await cloudinary.uploader.upload(
-            `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
-            {
-              folder: 'sewnova/designs',
-              resource_type: 'auto',
-              quality: 'auto',
-              fetch_format: 'auto'
-            }
-          );
-          
-          uploadedImages.push({
-            url: result.secure_url,
-            publicId: result.public_id
-          });
-        } catch (uploadError) {
-          console.error('Image upload error:', uploadError);
-          return res.status(400).json({
-            success: false,
-            message: 'Failed to upload images to Cloudinary',
-            error: uploadError.message
-          });
+      // Check if Cloudinary is configured
+      if (!process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME === 'your-cloud-name' || !process.env.CLOUDINARY_API_KEY) {
+        console.log('⚠️  Cloudinary not configured, using placeholder images');
+        uploadedImages = uploadedFiles.map((file, index) => ({
+          url: `https://via.placeholder.com/400x300?text=Design+${index + 1}`,
+          publicId: `placeholder-${Date.now()}-${index}`
+        }));
+      } else {
+        for (const file of uploadedFiles) {
+          try {
+            const result = await cloudinary.uploader.upload(
+              `data:${file.mimetype};base64,${file.buffer.toString('base64')}`,
+              {
+                folder: 'sewnova/designs',
+                resource_type: 'auto',
+                quality: 'auto',
+                fetch_format: 'auto'
+              }
+            );
+            
+            uploadedImages.push({
+              url: result.secure_url,
+              publicId: result.public_id
+            });
+          } catch (uploadError) {
+            console.error('Image upload error:', uploadError);
+            return res.status(400).json({
+              success: false,
+              message: 'Failed to upload images to Cloudinary',
+              error: uploadError.message
+            });
+          }
         }
       }
       
-      console.log(`Successfully uploaded ${uploadedImages.length} images to Cloudinary`);
+      console.log(`Successfully processed ${uploadedImages.length} images`);
     }
 
     // Create design with uploaded image URLs

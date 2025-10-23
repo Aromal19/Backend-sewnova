@@ -21,7 +21,8 @@ from measurement_utils import (
     compute_measurements,
     preprocess_image,
     enhance_pose_detection,
-    validate_landmarks
+    validate_landmarks,
+    create_landmarks_visualization
 )
 
 # === MODIFIED: Add rate limiting ===
@@ -182,6 +183,14 @@ async def measure(
             clothing_mask=clothing_mask
         )
 
+        # Create landmarks visualization
+        landmarks_image = None
+        try:
+            landmarks_image = create_landmarks_visualization(front_img, landmarks)
+        except Exception as e:
+            print(f"Landmarks visualization failed: {e}")
+            # Continue without visualization
+
         # === MODIFIED: Enhanced response format ===
         response = {
             "success": True,
@@ -199,6 +208,10 @@ async def measure(
                 "landmarks_detected": len(landmarks)
             }
         }
+        
+        # Add landmarks visualization if available
+        if landmarks_image:
+            response["landmarks_image"] = landmarks_image
         return response
         
     except HTTPException:

@@ -1,47 +1,86 @@
+const axios = require('axios');
+
+const CUSTOMER_SERVICE_URL = process.env.CUSTOMER_SERVICE_URL || 'http://localhost:3002';
+const DESIGN_SERVICE_URL = process.env.DESIGN_SERVICE_URL || 'http://localhost:3006';
+
 const getAnalytics = async (req, res) => {
   try {
     const { period = '30d' } = req.query;
     
-    // Mock analytics data
+    // Fetch real data from customer service
+    let bookingStats = null;
+    let designStats = null;
+    
+    try {
+      // Get booking statistics from customer service
+      const bookingResponse = await axios.get(`${CUSTOMER_SERVICE_URL}/api/simple-bookings/statistics`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (bookingResponse.data.success) {
+        bookingStats = bookingResponse.data.data;
+        console.log('✅ Fetched booking stats:', bookingStats);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching booking statistics:', error.message);
+    }
+    
+    try {
+      // Get design statistics from design service
+      const designResponse = await axios.get(`${DESIGN_SERVICE_URL}/api/designs`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (designResponse.data.success) {
+        designStats = {
+          totalDesigns: designResponse.data.count,
+          designs: designResponse.data.data
+        };
+        console.log('✅ Fetched design stats:', designStats);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching design statistics:', error.message);
+    }
+    
+    // Build analytics with real data
     const analytics = {
       overview: {
-        totalUsers: 1250,
-        totalOrders: 3420,
-        totalRevenue: 125000,
-        activeTailors: 45,
-        activeSellers: 32,
-        pendingOrders: 156,
-        completedOrders: 3264
+        totalUsers: 0, // This would need to be fetched from auth service
+        totalOrders: bookingStats?.totalBookings || 0,
+        totalRevenue: bookingStats?.totalRevenue || 0,
+        activeTailors: 0, // This would need to be fetched from tailor service
+        activeSellers: 0, // This would need to be fetched from vendor service
+        pendingOrders: bookingStats?.bookingsByStatus?.pending || 0,
+        completedOrders: bookingStats?.bookingsByStatus?.completed || 0,
+        totalDesigns: designStats?.totalDesigns || 0
       },
       revenue: {
         labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-        data: [15000, 18000, 22000, 25000, 20000, 25000]
+        data: [15000, 18000, 22000, 25000, 20000, 25000] // This would need real time-series data
       },
       orders: {
         labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-        data: [45, 52, 38, 65, 58, 42, 35]
+        data: [45, 52, 38, 65, 58, 42, 35] // This would need real time-series data
       },
       userGrowth: {
         labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-        data: [120, 145, 168, 195]
+        data: [120, 145, 168, 195] // This would need real time-series data
       },
-      topTailors: [
-        { name: 'Sarah Johnson', orders: 45, rating: 4.9, revenue: 12500 },
-        { name: 'Mike Chen', orders: 38, rating: 4.8, revenue: 9800 },
-        { name: 'Emma Davis', orders: 32, rating: 4.7, revenue: 8500 }
-      ],
-      topSellers: [
-        { name: 'Fashion Store', products: 25, sales: 120, revenue: 15000 },
-        { name: 'Style Hub', products: 20, sales: 95, revenue: 12000 },
-        { name: 'Trendy Shop', products: 18, sales: 88, revenue: 11000 }
-      ],
-      orderStatus: {
-        completed: 3264,
-        pending: 156,
-        inProgress: 89,
-        cancelled: 23
-      }
+      topTailors: [], // This would need to be fetched from tailor service
+      topSellers: [], // This would need to be fetched from vendor service
+      orderStatus: bookingStats?.bookingsByStatus || {
+        completed: 0,
+        pending: 0,
+        in_progress: 0,
+        ready_for_fitting: 0,
+        delivered: 0,
+        cancelled: 0
+      },
+      recentBookings: bookingStats?.recentBookings || 0,
+      bookingsByType: bookingStats?.bookingsByType || []
     };
+
+    console.log('📊 Analytics data prepared:', analytics);
 
     res.json({
       success: true,

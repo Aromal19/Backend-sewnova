@@ -110,7 +110,7 @@ const createDesign = async (req, res) => {
     const designData = req.body;
     
     // Validate required fields
-    const requiredFields = ['name', 'category'];
+    const requiredFields = ['name', 'category', 'garmentType'];
     const missingFields = requiredFields.filter(field => !designData[field]);
     
     if (missingFields.length > 0) {
@@ -130,6 +130,11 @@ const createDesign = async (req, res) => {
           invalidIds: validation.invalidIds
         });
       }
+    }
+    
+    // Parse tags if it's a string
+    if (designData.tags && typeof designData.tags === 'string') {
+      designData.tags = designData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
     }
     
     // Handle image uploads to Cloudinary
@@ -240,6 +245,11 @@ const updateDesign = async (req, res) => {
           invalidIds: validation.invalidIds
         });
       }
+    }
+    
+    // Parse tags if it's a string
+    if (updateData.tags && typeof updateData.tags === 'string') {
+      updateData.tags = updateData.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
     }
     
     

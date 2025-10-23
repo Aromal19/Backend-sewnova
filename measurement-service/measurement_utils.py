@@ -187,6 +187,65 @@ def validate_landmarks(landmarks: dict) -> bool:
     found_required = sum(1 for lm in required_landmarks if lm in landmarks)
     return found_required >= 5  # Allow some missing but need most key points
 
+def create_landmarks_visualization(image_bgr: np.ndarray, landmarks: dict) -> str:
+    """Create a visualization of detected landmarks and return as base64 string"""
+    try:
+        # Create a copy of the image for visualization
+        vis_img = image_bgr.copy()
+        
+        # Draw landmarks as circles
+        for lm_id, lm_data in landmarks.items():
+            if lm_data and 'x' in lm_data and 'y' in lm_data:
+                x, y = int(lm_data['x']), int(lm_data['y'])
+                visibility = lm_data.get('visibility', 0)
+                
+                # Color based on visibility (green for high confidence, yellow for medium, red for low)
+                if visibility > 0.8:
+                    color = (0, 255, 0)  # Green
+                elif visibility > 0.5:
+                    color = (0, 255, 255)  # Yellow
+                else:
+                    color = (0, 0, 255)  # Red
+                
+                # Draw circle for landmark
+                cv2.circle(vis_img, (x, y), 4, color, -1)
+                cv2.circle(vis_img, (x, y), 6, (255, 255, 255), 1)  # White border
+        
+        # Draw connections between key landmarks
+        connections = [
+            (mp_pose.PoseLandmark.LEFT_SHOULDER.value, mp_pose.PoseLandmark.RIGHT_SHOULDER.value),
+            (mp_pose.PoseLandmark.LEFT_SHOULDER.value, mp_pose.PoseLandmark.LEFT_HIP.value),
+            (mp_pose.PoseLandmark.RIGHT_SHOULDER.value, mp_pose.PoseLandmark.RIGHT_HIP.value),
+            (mp_pose.PoseLandmark.LEFT_HIP.value, mp_pose.PoseLandmark.RIGHT_HIP.value),
+            (mp_pose.PoseLandmark.LEFT_SHOULDER.value, mp_pose.PoseLandmark.LEFT_ELBOW.value),
+            (mp_pose.PoseLandmark.LEFT_ELBOW.value, mp_pose.PoseLandmark.LEFT_WRIST.value),
+            (mp_pose.PoseLandmark.RIGHT_SHOULDER.value, mp_pose.PoseLandmark.RIGHT_ELBOW.value),
+            (mp_pose.PoseLandmark.RIGHT_ELBOW.value, mp_pose.PoseLandmark.RIGHT_WRIST.value),
+            (mp_pose.PoseLandmark.LEFT_HIP.value, mp_pose.PoseLandmark.LEFT_KNEE.value),
+            (mp_pose.PoseLandmark.LEFT_KNEE.value, mp_pose.PoseLandmark.LEFT_ANKLE.value),
+            (mp_pose.PoseLandmark.RIGHT_HIP.value, mp_pose.PoseLandmark.RIGHT_KNEE.value),
+            (mp_pose.PoseLandmark.RIGHT_KNEE.value, mp_pose.PoseLandmark.RIGHT_ANKLE.value),
+        ]
+        
+        for start_lm, end_lm in connections:
+            if start_lm in landmarks and end_lm in landmarks:
+                start_data = landmarks[start_lm]
+                end_data = landmarks[end_lm]
+                if start_data and end_data and 'x' in start_data and 'y' in start_data and 'x' in end_data and 'y' in end_data:
+                    start_x, start_y = int(start_data['x']), int(start_data['y'])
+                    end_x, end_y = int(end_data['x']), int(end_data['y'])
+                    cv2.line(vis_img, (start_x, start_y), (end_x, end_y), (0, 255, 0), 2)
+        
+        # Convert to base64 string
+        _, buffer = cv2.imencode('.jpg', vis_img)
+        import base64
+        landmarks_b64 = base64.b64encode(buffer).decode('utf-8')
+        return landmarks_b64
+        
+    except Exception as e:
+        print(f"Error creating landmarks visualization: {e}")
+        return None
+
 # ---------- Measurement logic ----------
 def cm_per_pixel_from_height(landmarks: dict, image_height_px: int, 
                            user_height_cm: Optional[float] = None, 

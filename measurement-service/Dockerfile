@@ -1,17 +1,18 @@
-# Use Python 3.11 Alpine image
-FROM python:3.11-alpine
+# Use Python 3.11 Debian-based image
+FROM python:3.11-slim
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     gcc \
-    musl-dev \
+    g++ \
     libffi-dev \
-    openssl-dev \
+    libssl-dev \
     python3-dev \
-    build-base
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
 COPY requirements.txt .
@@ -23,8 +24,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create non-root user
-RUN addgroup -g 1001 -S python
-RUN adduser -S python -u 1001
+RUN groupadd -g 1001 python && \
+    useradd -r -u 1001 -g python python
 
 # Change ownership of the app directory
 RUN chown -R python:python /app

@@ -177,17 +177,58 @@ const changePassword = async (req, res) => {
 // Get dashboard stats
 const getDashboardStats = async (req, res) => {
   try {
-    // This would typically fetch from other services
+    const axios = require('axios');
+    const CUSTOMER_SERVICE_URL = process.env.CUSTOMER_SERVICE_URL || 'http://localhost:3002';
+    const DESIGN_SERVICE_URL = process.env.DESIGN_SERVICE_URL || 'http://localhost:3006';
+    
+    let bookingStats = null;
+    let designStats = null;
+    
+    try {
+      // Get booking statistics from customer service
+      const bookingResponse = await axios.get(`${CUSTOMER_SERVICE_URL}/api/simple-bookings/statistics`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (bookingResponse.data.success) {
+        bookingStats = bookingResponse.data.data;
+        console.log('✅ Dashboard: Fetched booking stats:', bookingStats);
+      }
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching booking statistics:', error.message);
+    }
+    
+    try {
+      // Get design statistics from design service
+      const designResponse = await axios.get(`${DESIGN_SERVICE_URL}/api/designs`, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (designResponse.data.success) {
+        designStats = {
+          totalDesigns: designResponse.data.count
+        };
+        console.log('✅ Dashboard: Fetched design stats:', designStats);
+      }
+    } catch (error) {
+      console.error('❌ Dashboard: Error fetching design statistics:', error.message);
+    }
+    
+    // Build stats with real data
     const stats = {
-      totalUsers: 1250,
-      totalOrders: 3420,
-      totalRevenue: 125000,
-      activeTailors: 45,
-      activeSellers: 32,
-      pendingOrders: 156,
-      completedOrders: 3264,
-      totalDesigns: 89
+      totalUsers: 0, // This would need to be fetched from auth service
+      totalOrders: bookingStats?.totalBookings || 0,
+      totalRevenue: bookingStats?.totalRevenue || 0,
+      activeTailors: 0, // This would need to be fetched from tailor service
+      activeSellers: 0, // This would need to be fetched from vendor service
+      pendingOrders: bookingStats?.bookingsByStatus?.pending || 0,
+      completedOrders: bookingStats?.bookingsByStatus?.completed || 0,
+      totalDesigns: designStats?.totalDesigns || 0,
+      recentBookings: bookingStats?.recentBookings || 0,
+      orderStatus: bookingStats?.bookingsByStatus || {}
     };
+
+    console.log('📊 Dashboard stats prepared:', stats);
 
     res.json({
       success: true,
