@@ -9,33 +9,29 @@ import time
 
 def main():
     print("🤖 Starting AI Measurement Service...")
-    print("📦 Loading AI models (this may take a few minutes)...")
     
     try:
-        # Import and load models
-        print("   • Loading MediaPipe...")
+        # Import and load models (suppress verbose output)
+        import warnings
+        warnings.filterwarnings('ignore')
+        
         import mediapipe as mp
-        print("   ✓ MediaPipe loaded")
-        
-        print("   • Loading MiDaS depth model...")
         import torch
-        from measurement_utils import load_midas
+        from measurement_utils import load_midas, load_segformer
+        
+        print("📦 Loading AI models...")
         midas_model, midas_transform = load_midas()
-        print("   ✓ MiDaS model loaded")
-        
-        print("   • Loading SegFormer...")
-        from measurement_utils import load_segformer
         seg_processor, seg_model = load_segformer("mattmdjaga/segformer_b2_clothes")
-        print("   ✓ SegFormer loaded")
         
-        print("🚀 All models loaded successfully!")
-        print("🌐 Starting FastAPI server...")
+        print("✅ Models loaded successfully!")
+        print("🌐 Server running on http://localhost:8001")
+        print("   (Press Ctrl+C to stop)\n")
         
-        # Start the FastAPI app
+        # Start the FastAPI app with minimal logging
         import uvicorn
         from app import app
         
-        uvicorn.run(app, host="0.0.0.0", port=8001, log_level="info")
+        uvicorn.run(app, host="0.0.0.0", port=8001, log_level="warning")
         
     except Exception as e:
         print(f"❌ Error starting AI service: {e}")

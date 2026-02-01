@@ -208,8 +208,32 @@ services:
     networks:
       - sewnova-network
 
+  # Delivery Service
+  delivery-service:
+    build:
+      context: ./delivery-service
+      dockerfile: Dockerfile
+    container_name: sewnova-delivery
+    restart: unless-stopped
+    ports:
+      - "3008:3008"
+    environment:
+      - NODE_ENV=production
+      - PORT=3008
+      - MONGODB_URI=mongodb+srv://aromalgirish00:aromal00@sewnova.tlnzt4i.mongodb.net/?retryWrites=true&w=majority&appName=sewnova
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - FRONTEND_URL=http://localhost:5173
+      - JWT_SECRET=b8d2f8b9c24a17e1d1e1a2f6b5c3a8791e9b47a1e3c38a7216e7bbf7f28d194d
+      - LOG_LEVEL=info
+    depends_on:
+      - mongodb
+      - auth-service
+    networks:
+      - sewnova-network
+
 volumes:
   mongodb_data:
+
 
 networks:
   sewnova-network:
