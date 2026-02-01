@@ -10,7 +10,7 @@ router.post('/', deliveryController.createDelivery);
 router.get(
     '/customer/:customerId',
     authMiddleware.authMiddleware,
-    authMiddleware.customerOnly,
+    // authMiddleware.customerOnly, // Removed strict RBAC
     deliveryController.getCustomerDeliveries
 );
 
@@ -36,11 +36,11 @@ router.put(
     deliveryController.updateTailorDelivery
 );
 
-// Admin routes (authenticated)
+// Admin routes (authenticated) -> Now accessible to all authenticated users
 router.get(
     '/admin/all',
     authMiddleware.authMiddleware,
-    authMiddleware.adminOnly,
+    // authMiddleware.adminOnly, // Removed strict RBAC
     deliveryController.getAllDeliveries
 );
 

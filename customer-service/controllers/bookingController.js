@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Booking = require('../models/booking');
 const Order = require('../models/order');
 const Tailor = require('../models/tailor');
+const Fabric = require('../models/fabric');
 const { sendNewOrderNotification, sendPaymentConfirmationEmail, sendOrderStatusUpdateEmail } = require('../utils/orderEmailService');
 
 // Get customer bookings
@@ -9,26 +10,26 @@ const getCustomerBookings = async (req, res) => {
   try {
     const { status, bookingType, page = 1, limit = 10 } = req.query;
     const customerId = req.user._id;
-    
+
     // Build filter object
-    const filter = { 
-      customerId, 
-      isActive: true 
+    const filter = {
+      customerId,
+      isActive: true
     };
-    
+
     // Add status filter if provided
     if (status) {
       filter.status = status;
     }
-    
+
     // Add booking type filter if provided
     if (bookingType) {
       filter.bookingType = bookingType;
     }
-    
+
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Get bookings with populated references
     const bookings = await Booking.find(filter)
       .populate('tailorId', 'firstname lastname email phone location rating specialization')
@@ -42,7 +43,7 @@ const getCustomerBookings = async (req, res) => {
 
     // Get total count for pagination
     const totalBookings = await Booking.countDocuments(filter);
-    
+
     // Calculate pagination info
     const totalPages = Math.ceil(totalBookings / parseInt(limit));
     const hasNextPage = page < totalPages;
@@ -75,7 +76,7 @@ const getCustomerOrders = async (req, res) => {
     console.log('🔍 GET CUSTOMER ORDERS - PAID BOOKINGS ONLY');
     console.log('👤 Request object:', req);
     console.log('👤 User object:', req.user);
-    
+
     // Check if user is authenticated
     if (!req.user) {
       console.error('❌ No user found in request');
@@ -84,7 +85,7 @@ const getCustomerOrders = async (req, res) => {
         message: 'User not authenticated'
       });
     }
-    
+
     // Try different possible user ID fields
     const customerId = req.user._id || req.user.id || req.user.userId;
     if (!customerId) {
@@ -96,46 +97,46 @@ const getCustomerOrders = async (req, res) => {
         userObject: req.user
       });
     }
-    
+
     const { status, bookingType, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
-    
+
     console.log('👤 User ID:', customerId);
     console.log('📋 Query params:', { status, bookingType, page, limit, sortBy, sortOrder });
-    
+
     // Build filter object - start with basic filter, then add paid requirement
-    const filter = { 
-      customerId, 
+    const filter = {
+      customerId,
       isActive: true
     };
-    
+
     // Add paid status filter
     filter['payment.status'] = 'paid';
-    
+
     console.log('🔍 Filter object (paid bookings only):', filter);
-    
+
     // Add status filter if provided
     if (status) {
       filter.status = status;
     }
-    
+
     // Add booking type filter if provided
     if (bookingType) {
       filter.bookingType = bookingType;
     }
-    
+
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Build sort object
     const sort = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
-    
+
     // Get bookings with populated references - only paid bookings
     console.log('🔍 Executing database query for PAID bookings...');
     console.log('🔍 Final filter:', filter);
     console.log('🔍 Sort object:', sort);
     console.log('🔍 Skip:', skip, 'Limit:', parseInt(limit));
-    
+
     let bookings = [];
     try {
       bookings = await Booking.find(filter)
@@ -172,53 +173,53 @@ const getCustomerOrders = async (req, res) => {
         error: countError.message
       });
     }
-    
+
     // Debug: Check if there are any bookings in the database at all
     const allBookingsCount = await Booking.countDocuments({});
     console.log('📊 Total bookings in database:', allBookingsCount);
-    
+
     // Debug: Check if there are any bookings for this customer without isActive filter
     const customerBookingsCount = await Booking.countDocuments({ customerId });
     console.log('📊 Bookings for this customer (any status):', customerBookingsCount);
-    
+
     // Debug: Check paid bookings for this customer
-    const paidBookingsCount = await Booking.countDocuments({ 
-      customerId, 
-      'payment.status': 'paid' 
+    const paidBookingsCount = await Booking.countDocuments({
+      customerId,
+      'payment.status': 'paid'
     });
     console.log('📊 PAID bookings for this customer:', paidBookingsCount);
-    
+
     // Debug: Check what customer IDs exist in the database
     const sampleBookings = await Booking.find({}).limit(3).select('customerId payment.status').lean();
     console.log('📊 Sample customer IDs and payment status:', sampleBookings.map(b => ({
       customerId: b.customerId,
       paymentStatus: b.payment?.status
     })));
-    
+
     // Debug: Check if customerId is a string or ObjectId
     console.log('🔍 Customer ID type:', typeof customerId);
     console.log('🔍 Customer ID value:', customerId);
     console.log('🔍 Is ObjectId valid:', mongoose.Types.ObjectId.isValid(customerId));
-    
+
     // Debug: Try different query variations for paid bookings
     console.log('🔍 Trying query with string customerId for paid bookings...');
-    const stringQuery = await Booking.find({ 
+    const stringQuery = await Booking.find({
       customerId: customerId.toString(),
       'payment.status': 'paid'
     }).countDocuments();
     console.log('📊 String query result (paid):', stringQuery);
-    
+
     console.log('🔍 Trying query with ObjectId for paid bookings...');
-    const objectIdQuery = await Booking.find({ 
+    const objectIdQuery = await Booking.find({
       customerId: new mongoose.Types.ObjectId(customerId),
       'payment.status': 'paid'
     }).countDocuments();
     console.log('📊 ObjectId query result (paid):', objectIdQuery);
-    
+
     // Debug: Check all paid bookings without any filter
     const allPaidBookings = await Booking.find({ 'payment.status': 'paid' }).limit(5).select('customerId status isActive payment.status').lean();
     console.log('📊 All paid bookings sample:', allPaidBookings);
-    
+
     // Calculate pagination info
     const totalPages = Math.ceil(totalBookings / parseInt(limit));
     const hasNextPage = page < totalPages;
@@ -337,7 +338,7 @@ const createBooking = async (req, res) => {
   console.log('📋 Request body:', JSON.stringify(req.body, null, 2));
   console.log('👤 User:', req.user);
   console.log('🔑 Headers:', JSON.stringify(req.headers, null, 2));
-  
+
   try {
     const payload = req.body || {};
 
@@ -381,11 +382,11 @@ const createBooking = async (req, res) => {
     console.log('User ID from req.user:', req.user ? (req.user._id || req.user.id) : 'No user');
     console.log('Tailor ID from payload:', tailorId);
     console.log('Fabric ID from payload:', fabricId);
-    
+
     const resolvedCustomerId = payload.customerId || (req.user && (req.user._id || req.user.id)) || undefined;
     console.log('Final resolved customerId:', resolvedCustomerId);
     console.log('=== END DEBUG ===');
-    
+
     if (!resolvedCustomerId) {
       return res.status(401).json({ success: false, message: 'Unauthorized: customer not resolved' });
     }
@@ -393,18 +394,18 @@ const createBooking = async (req, res) => {
     // Validate that customer and tailor IDs are different
     if (tailorId && resolvedCustomerId === tailorId) {
       console.error('❌ Customer ID and Tailor ID are the same:', resolvedCustomerId);
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Customer ID and Tailor ID cannot be the same' 
+      return res.status(400).json({
+        success: false,
+        message: 'Customer ID and Tailor ID cannot be the same'
       });
     }
 
     // Validate that customer and fabric IDs are different (if fabricId exists)
     if (fabricId && resolvedCustomerId === fabricId) {
       console.error('❌ Customer ID and Fabric ID are the same:', resolvedCustomerId);
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Customer ID and Fabric ID cannot be the same' 
+      return res.status(400).json({
+        success: false,
+        message: 'Customer ID and Fabric ID cannot be the same'
       });
     }
 
@@ -445,7 +446,7 @@ const createBooking = async (req, res) => {
       // Don't fail the booking creation, but log the issue
       customerEmail = 'unknown@example.com'; // Fallback email
     }
-    
+
     // Ensure we have an email
     if (!customerEmail) {
       console.warn('⚠️ No customer email found, using fallback');
@@ -466,9 +467,9 @@ const createBooking = async (req, res) => {
         quantity: orderDetails.quantity || 1,
         designDescription: orderDetails.designDescription || '',
         specialInstructions: orderDetails.specialInstructions || '',
-        deliveryDate: orderDetails.deliveryDate || new Date(Date.now() + 7*24*60*60*1000)
+        deliveryDate: orderDetails.deliveryDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       },
-      pricing: (function() {
+      pricing: (function () {
         const fabricCost = Number(pricing.fabricCost || 0);
         const tailoringCost = Number(pricing.tailoringCost || 0);
         const additionalCharges = Number(pricing.additionalCharges || 0);
@@ -497,13 +498,13 @@ const createBooking = async (req, res) => {
     console.log('📋 Booking data before save:', JSON.stringify(booking.toObject(), null, 2));
     console.log('📧 User email being saved:', customerEmail);
     console.log('🆔 Customer ID being saved:', resolvedCustomerId);
-    
+
     try {
       const savedBooking = await booking.save();
       console.log('✅ Booking saved to database successfully:', savedBooking._id);
       console.log('✅ Saved booking userEmail:', savedBooking.userEmail);
       console.log('✅ Saved booking customerId:', savedBooking.customerId);
-      
+
       // Verify the booking was actually saved by querying it back
       const verificationBooking = await Booking.findById(savedBooking._id);
       if (verificationBooking) {
@@ -534,18 +535,18 @@ const createBooking = async (req, res) => {
       try {
         // Fetch tailor details to get email
         const tailor = await Tailor.findById(tailorId).select('email firstname lastname');
-        
+
         // Fetch customer details
         const Customer = mongoose.model('Customer');
         const customer = await Customer.findById(resolvedCustomerId).select('firstname lastname email phone countryCode');
-        
+
         // Fetch delivery address
         const Address = mongoose.model('Address');
         const address = await Address.findById(addressObjectId);
 
         if (tailor && tailor.email) {
           console.log('📧 Sending order notification to tailor:', tailor.email);
-          
+
           const orderNotificationDetails = {
             orderId: booking._id.toString().substring(0, 10).toUpperCase(),
             customerName: `${customer.firstname} ${customer.lastname}`,
@@ -860,7 +861,7 @@ const handlePaymentSuccess = async (req, res) => {
   console.log('🔍 PAYMENT SUCCESS REQUEST RECEIVED');
   console.log('📋 Request params:', req.params);
   console.log('📋 Request body:', JSON.stringify(req.body, null, 2));
-  
+
   try {
     const { bookingId } = req.params;
     const {
@@ -897,7 +898,7 @@ const handlePaymentSuccess = async (req, res) => {
     if (!razorpayOrderId.startsWith('order_') && !razorpayOrderId.startsWith('test_')) {
       console.warn('⚠️ Razorpay Order ID format might be incorrect:', razorpayOrderId);
     }
-    
+
     if (!razorpayPaymentId.startsWith('pay_') && !razorpayPaymentId.startsWith('test_')) {
       console.warn('⚠️ Razorpay Payment ID format might be incorrect:', razorpayPaymentId);
     }
@@ -933,7 +934,7 @@ const handlePaymentSuccess = async (req, res) => {
 
     // NOW send emails AFTER database is updated
     console.log('📧 Sending emails after successful database update...');
-    
+
     // Send notification to tailor about new order
     try {
       await sendNewOrderNotification(updatedBooking);
@@ -968,11 +969,11 @@ const handlePaymentSuccess = async (req, res) => {
 const testAPI = async (req, res) => {
   try {
     console.log('🧪 TEST API - No authentication required');
-    
+
     // Test basic database connection
     const allBookings = await Booking.find({}).limit(1).lean();
     console.log('🧪 Database connection test:', allBookings.length > 0 ? 'SUCCESS' : 'NO DATA');
-    
+
     res.json({
       success: true,
       message: 'API is working',
@@ -998,7 +999,7 @@ const debugUser = async (req, res) => {
     console.log('🔍 User object:', req.user);
     console.log('🔍 User type:', typeof req.user);
     console.log('🔍 User keys:', req.user ? Object.keys(req.user) : 'No user');
-    
+
     res.json({
       success: true,
       message: 'User debug info',
@@ -1022,31 +1023,31 @@ const debugUser = async (req, res) => {
 const debugDatabase = async (req, res) => {
   try {
     console.log('🔍 DEBUG DATABASE CONTENTS - FOCUS ON PAID BOOKINGS');
-    
+
     // Get all bookings
     const allBookings = await Booking.find({}).lean();
     console.log('📊 Total bookings in database:', allBookings.length);
-    
+
     // Get current user
     const customerId = req.user._id;
     console.log('👤 Current user ID:', customerId);
     console.log('👤 User ID type:', typeof customerId);
-    
+
     // Check bookings for this customer
     const userBookings = await Booking.find({ customerId }).lean();
     console.log('📊 Bookings for current user:', userBookings.length);
-    
+
     // Check PAID bookings for this customer
-    const userPaidBookings = await Booking.find({ 
-      customerId, 
-      'payment.status': 'paid' 
+    const userPaidBookings = await Booking.find({
+      customerId,
+      'payment.status': 'paid'
     }).lean();
     console.log('📊 PAID bookings for current user:', userPaidBookings.length);
-    
+
     // Check all paid bookings in database
     const allPaidBookings = await Booking.find({ 'payment.status': 'paid' }).lean();
     console.log('📊 Total PAID bookings in database:', allPaidBookings.length);
-    
+
     // Show sample data
     if (allBookings.length > 0) {
       console.log('📊 Sample booking from database:', {
@@ -1058,7 +1059,7 @@ const debugDatabase = async (req, res) => {
         paymentStatus: allBookings[0].payment?.status
       });
     }
-    
+
     // Show sample paid booking if exists
     if (allPaidBookings.length > 0) {
       console.log('📊 Sample PAID booking:', {
@@ -1068,7 +1069,7 @@ const debugDatabase = async (req, res) => {
         status: allPaidBookings[0].status
       });
     }
-    
+
     res.json({
       success: true,
       debug: {
@@ -1094,15 +1095,15 @@ const debugDatabase = async (req, res) => {
 const debugRecentBookings = async (req, res) => {
   try {
     console.log('🔍 DEBUG: Checking recent bookings...');
-    
+
     // Get recent bookings from the last 24 hours
     const recentBookings = await Booking.find({
       createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
     }).sort({ createdAt: -1 }).limit(10);
-    
+
     console.log('📊 Recent bookings count:', recentBookings.length);
     console.log('📋 Recent bookings:', JSON.stringify(recentBookings, null, 2));
-    
+
     res.json({
       success: true,
       message: 'Recent bookings retrieved',
@@ -1123,11 +1124,11 @@ const debugRecentBookings = async (req, res) => {
 const createSampleBooking = async (req, res) => {
   try {
     const customerId = req.user._id;
-    
+
     // Get customer email for sample booking
     const Customer = require('../models/customer');
     const customer = await Customer.findById(customerId).select('email');
-    
+
     const sampleBooking = new Booking({
       customerId: customerId,
       userEmail: customer?.email || 'test@example.com',
@@ -1137,7 +1138,7 @@ const createSampleBooking = async (req, res) => {
         quantity: 1,
         designDescription: 'Sample shirt order',
         specialInstructions: 'Test order',
-        deliveryDate: new Date(Date.now() + 7*24*60*60*1000)
+        deliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       },
       pricing: {
         fabricCost: 500,
@@ -1161,7 +1162,7 @@ const createSampleBooking = async (req, res) => {
     });
 
     await sampleBooking.save();
-    
+
     res.json({
       success: true,
       message: 'Sample booking created',
