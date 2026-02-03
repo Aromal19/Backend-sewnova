@@ -9,11 +9,16 @@ const app = express();
 const PORT = process.env.PORT || 3007;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000'], // Allow frontend origins
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB limit
@@ -43,8 +48,8 @@ mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('✅ Admin Service connected to MongoDB'))
-.catch(err => console.error('❌ MongoDB connection error:', err));
+  .then(() => console.log('✅ Admin Service connected to MongoDB'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
 // Auth middleware
 const auth = require('./middleware/authMiddleware');
@@ -57,6 +62,7 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const measurementRoutes = require('./routes/measurementRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const fabricRoutes = require('./routes/fabricRoutes');
 
 
 // Health check
@@ -83,6 +89,7 @@ app.use('/api/analytics', analyticsRoutes); // Temporarily remove auth for testi
 app.use('/api/orders', auth.authMiddleware, auth.adminOnly, orderRoutes);
 app.use('/api/bookings', bookingRoutes); // Booking routes - NO authentication required
 app.use('/api/measurements', measurementRoutes); // Measurement routes
+app.use('/api/fabric', fabricRoutes); // Fabric estimation routes
 
 // Error handling middleware
 app.use((err, req, res, next) => {

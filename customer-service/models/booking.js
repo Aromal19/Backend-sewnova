@@ -17,14 +17,19 @@ const bookingSchema = new mongoose.Schema({
     enum: ['tailor', 'fabric', 'complete'],
     required: true
   },
-  
+
   // Tailor booking details
   tailorId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tailor',
-    required: function() {
+    required: function () {
       return ['tailor', 'complete'].includes(this.bookingType);
     }
+  },
+
+  // Seller ID (for fabric bookings) - Optional, populated from Fabric if available
+  sellerId: {
+    type: mongoose.Schema.Types.ObjectId
   },
   tailorDetails: {
     name: String,
@@ -37,12 +42,12 @@ const bookingSchema = new mongoose.Schema({
     rating: Number,
     specialization: [String]
   },
-  
+
   // Fabric booking details
   fabricId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Fabric',
-    required: function() {
+    required: function () {
       return ['fabric', 'complete'].includes(this.bookingType);
     }
   },
@@ -54,7 +59,7 @@ const bookingSchema = new mongoose.Schema({
     price: Number,
     sellerId: mongoose.Schema.Types.ObjectId
   },
-  
+
   // Measurement details
   measurementId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -66,7 +71,7 @@ const bookingSchema = new mongoose.Schema({
     type: Object,
     default: null
   },
-  
+
   // Order details
   orderDetails: {
     garmentType: {
@@ -94,7 +99,7 @@ const bookingSchema = new mongoose.Schema({
       required: true
     }
   },
-  
+
   // Pricing
   pricing: {
     fabricCost: {
@@ -128,14 +133,14 @@ const bookingSchema = new mongoose.Schema({
       required: true
     }
   },
-  
+
   // Delivery details
   deliveryAddress: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Address',
     required: true
   },
-  
+
   // Payment info
   payment: {
     status: {
@@ -154,14 +159,14 @@ const bookingSchema = new mongoose.Schema({
     paidAmount: { type: Number, default: 0 },
     paidAt: Date
   },
-  
+
   // Status tracking
   status: {
     type: String,
     enum: ['pending', 'confirmed', 'in_progress', 'ready_for_fitting', 'completed', 'cancelled', 'delivered'],
     default: 'pending'
   },
-  
+
   // Timeline
   timeline: {
     bookingDate: {
@@ -174,7 +179,7 @@ const bookingSchema = new mongoose.Schema({
     completionDate: Date,
     deliveryDate: Date
   },
-  
+
   // Communication
   messages: [{
     sender: {
@@ -195,7 +200,7 @@ const bookingSchema = new mongoose.Schema({
       default: false
     }
   }],
-  
+
   // Reviews and ratings
   review: {
     rating: {
@@ -206,7 +211,7 @@ const bookingSchema = new mongoose.Schema({
     comment: String,
     reviewDate: Date
   },
-  
+
   // Cancellation details
   cancellation: {
     reason: String,
@@ -217,7 +222,7 @@ const bookingSchema = new mongoose.Schema({
     cancellationDate: Date,
     refundAmount: Number
   },
-  
+
   // Metadata
   isActive: {
     type: Boolean,
@@ -236,18 +241,19 @@ const bookingSchema = new mongoose.Schema({
 // Indexes
 bookingSchema.index({ customerId: 1, status: 1 });
 bookingSchema.index({ tailorId: 1, status: 1 });
+bookingSchema.index({ sellerId: 1, status: 1 });
 bookingSchema.index({ fabricId: 1 });
 bookingSchema.index({ status: 1, deliveryDate: 1 });
 bookingSchema.index({ createdAt: -1 });
 
 // Update timestamp on save
-bookingSchema.pre('save', function(next) {
+bookingSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
 
 // Calculate remaining amount
-bookingSchema.pre('save', function(next) {
+bookingSchema.pre('save', function (next) {
   if (this.pricing.totalAmount && this.pricing.advanceAmount) {
     this.pricing.remainingAmount = this.pricing.totalAmount - this.pricing.advanceAmount;
   }

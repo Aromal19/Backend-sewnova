@@ -3,54 +3,96 @@ const router = express.Router();
 const deliveryController = require('../controllers/deliveryController');
 const authMiddleware = require('../middleware/authMiddleware');
 
-// Public routes (no auth required - for internal service calls)
+// ============================================================================
+// SYSTEM/INTERNAL: Create delivery (called by order service on confirmation)
+// ============================================================================
 router.post('/', deliveryController.createDelivery);
 
-// Customer routes (authenticated)
+// ============================================================================
+// VENDOR/TAILOR: Submit dispatch details
+// POST /api/deliveries/:id/dispatch
+// Access: Vendor (for FABRIC) or Tailor (for GARMENT)
+// ============================================================================
+router.post(
+    '/:id/dispatch',
+    authMiddleware.authMiddleware,
+    authMiddleware.vendorOrTailor,
+    deliveryController.submitDispatchDetails
+);
+
+// ============================================================================
+// VENDOR/TAILOR/ADMIN: Mark delivery as completed
+// POST /api/deliveries/:id/complete
+// Access: Vendor (for FABRIC), Tailor (for GARMENT), or Admin (for any)
+// ============================================================================
+router.post(
+    '/:id/complete',
+    authMiddleware.authMiddleware,
+    deliveryController.markDelivered
+);
+
+// ============================================================================
+// ADMIN: Override delivery details with reason logging
+// POST /api/deliveries/:id/admin-override
+// Access: Admin only
+// ============================================================================
+router.post(
+    '/:id/admin-override',
+    authMiddleware.authMiddleware,
+    authMiddleware.adminOnly,
+    deliveryController.adminOverride
+);
+
+// ============================================================================
+// CUSTOMER/AUTHENTICATED: Get delivery by order ID
+// GET /api/deliveries/order/:orderId
+// Access: Authenticated users
+// ============================================================================
+router.get(
+    '/order/:orderId',
+    authMiddleware.authMiddleware,
+    deliveryController.getDeliveryByOrderId
+);
+
+// ============================================================================
+// CUSTOMER: Get all deliveries for a customer
+// GET /api/deliveries/customer/:customerId
+// Access: Authenticated users (customer or admin)
+// ============================================================================
 router.get(
     '/customer/:customerId',
     authMiddleware.authMiddleware,
-    // authMiddleware.customerOnly, // Removed strict RBAC
     deliveryController.getCustomerDeliveries
 );
 
+// ============================================================================
+// CUSTOMER: Get delivery tracking information
+// GET /api/deliveries/tracking/:orderId
+// Access: Authenticated users
+// ============================================================================
 router.get(
-    '/tracking/:bookingId',
+    '/tracking/:orderId',
     authMiddleware.authMiddleware,
     deliveryController.getDeliveryTracking
 );
 
-// Vendor routes (authenticated)
-router.put(
-    '/:id/vendor-dispatch',
-    authMiddleware.authMiddleware,
-    authMiddleware.vendorOnly,
-    deliveryController.updateVendorDispatch
-);
-
-// Tailor routes (authenticated)
-router.put(
-    '/:id/tailor-delivery',
-    authMiddleware.authMiddleware,
-    authMiddleware.tailorOnly,
-    deliveryController.updateTailorDelivery
-);
-
-// Admin routes (authenticated) -> Now accessible to all authenticated users
+// ============================================================================
+// ADMIN: Get all deliveries with filtering
+// GET /api/deliveries/admin/all
+// Access: Admin only
+// ============================================================================
 router.get(
     '/admin/all',
     authMiddleware.authMiddleware,
-    // authMiddleware.adminOnly, // Removed strict RBAC
+    authMiddleware.adminOnly,
     deliveryController.getAllDeliveries
 );
 
-// Common routes (authenticated - any role)
-router.get(
-    '/booking/:bookingId',
-    authMiddleware.authMiddleware,
-    deliveryController.getDeliveryByBookingId
-);
-
+// ============================================================================
+// AUTHENTICATED: Get delivery status history
+// GET /api/deliveries/:id/history
+// Access: Authenticated users
+// ============================================================================
 router.get(
     '/:id/history',
     authMiddleware.authMiddleware,

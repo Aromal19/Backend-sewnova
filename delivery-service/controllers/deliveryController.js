@@ -1,43 +1,49 @@
 const Delivery = require('../models/delivery');
 const mongoose = require('mongoose');
 
-// Create delivery record when booking is confirmed
+// ============================================================================
+// SYSTEM-TRIGGERED: Create delivery record when order is confirmed
+// ============================================================================
 exports.createDelivery = async (req, res) => {
     try {
-        const { bookingId, customerId, bookingType, deliveryAddress } = req.body;
+        const { orderId, customerId, orderItems, deliveryAddress } = req.body;
 
         // Validate required fields
-        if (!bookingId || !customerId || !bookingType) {
+        if (!orderId || !customerId || !orderItems || !Array.isArray(orderItems)) {
             return res.status(400).json({
                 success: false,
-                message: 'Missing required fields: bookingId, customerId, bookingType'
+                message: 'Missing required fields: orderId, customerId, orderItems'
             });
         }
 
-        // Check if delivery already exists for this booking
-        const existingDelivery = await Delivery.findOne({ bookingId });
+        // Check if delivery already exists for this order
+        const existingDelivery = await Delivery.findOne({ orderId });
         if (existingDelivery) {
             return res.status(400).json({
                 success: false,
-                message: 'Delivery record already exists for this booking'
+                message: 'Delivery record already exists for this order',
+                delivery: existingDelivery
             });
         }
 
+        // Determine delivery type from order items
+        const deliveryType = Delivery.determineDeliveryType(orderItems);
+
         // Create new delivery
         const delivery = new Delivery({
-            bookingId,
+            orderId,
             customerId,
-            bookingType,
+            deliveryType,
             deliveryAddress: deliveryAddress || {},
-            overallStatus: 'pending'
+            status: 'CREATED',
+            isLocked: false
         });
 
         // Add initial status history
         delivery.addStatusHistory(
-            'pending',
-            'overall',
+            'CREATED',
             { role: 'system', id: new mongoose.Types.ObjectId() },
-            'Delivery record created'
+            'Delivery record created on order confirmation'
         );
 
         await delivery.save();
@@ -57,19 +63,266 @@ exports.createDelivery = async (req, res) => {
     }
 };
 
-// Get delivery by booking ID
-exports.getDeliveryByBookingId = async (req, res) => {
+// ============================================================================
+// VENDOR/TAILOR: Submit dispatch details
+// POST /api/deliveries/:id/dispatch
+// ============================================================================
+exports.submitDispatchDetails = async (req, res) => {
     try {
-        const { bookingId } = req.params;
+        const { id } = req.params;
+        const { courierName, trackingId } = req.body;
+        const userId = req.user?.userId;
+        const userRole = req.user?.role;
 
-        const delivery = await Delivery.findOne({ bookingId })
-            .populate('bookingId', 'orderDetails pricing status')
+        // Validate required fields
+        if (!courierName || !trackingId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: courierName, trackingId'
+            });
+        }
+
+        // Find delivery
+        const delivery = await Delivery.findById(id);
+        if (!delivery) {
+            return res.status(404).json({
+                success: false,
+                message: 'Delivery record not found'
+            });
+        }
+
+        // Check if already locked
+        if (delivery.isLocked) {
+            return res.status(400).json({
+                success: false,
+                message: 'Dispatch details are locked and cannot be modified. Contact admin for changes.'
+            });
+        }
+
+        // Validate status
+        if (delivery.status !== 'CREATED') {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot submit dispatch details. Current status is ${delivery.status}. Dispatch can only be submitted when status is CREATED.`
+            });
+        }
+
+        // Validate role matches delivery type
+        if (delivery.deliveryType === 'FABRIC' && userRole !== 'seller') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only vendors can dispatch FABRIC deliveries'
+            });
+        }
+
+        if (delivery.deliveryType === 'GARMENT' && userRole !== 'tailor') {
+            return res.status(403).json({
+                success: false,
+                message: 'Only tailors can dispatch GARMENT deliveries'
+            });
+        }
+
+        // Update dispatch details
+        delivery.courierName = courierName.trim();
+        delivery.trackingId = trackingId.trim();
+        delivery.dispatchedAt = new Date();
+        delivery.isLocked = true; // Lock dispatch metadata
+        delivery.status = 'DISPATCHED';
+        delivery.dispatchedBy = {
+            userId: userId,
+            role: userRole
+        };
+
+        // Add to status history
+        delivery.addStatusHistory(
+            'DISPATCHED',
+            { role: userRole, id: userId },
+            `Dispatched via ${courierName}, tracking: ${trackingId}`
+        );
+
+        await delivery.save();
+
+        res.json({
+            success: true,
+            message: 'Dispatch details submitted successfully. Delivery status updated to DISPATCHED.',
+            delivery
+        });
+    } catch (error) {
+        console.error('Error submitting dispatch details:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to submit dispatch details',
+            error: error.message
+        });
+    }
+};
+
+// ============================================================================
+// VENDOR/TAILOR/ADMIN: Mark delivery as completed
+// POST /api/deliveries/:id/complete
+// ============================================================================
+exports.markDelivered = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user?.userId;
+        const userRole = req.user?.role;
+
+        // Find delivery
+        const delivery = await Delivery.findById(id);
+        if (!delivery) {
+            return res.status(404).json({
+                success: false,
+                message: 'Delivery record not found'
+            });
+        }
+
+        // Validate status
+        if (delivery.status !== 'DISPATCHED') {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot mark as delivered. Current status is ${delivery.status}. Delivery can only be completed when status is DISPATCHED.`
+            });
+        }
+
+        // Validate role (vendor for FABRIC, tailor for GARMENT, or admin for any)
+        if (userRole !== 'admin') {
+            if (delivery.deliveryType === 'FABRIC' && userRole !== 'seller') {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Only vendors can mark FABRIC deliveries as delivered'
+                });
+            }
+
+            if (delivery.deliveryType === 'GARMENT' && userRole !== 'tailor') {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Only tailors can mark GARMENT deliveries as delivered'
+                });
+            }
+        }
+
+        // Update delivery
+        delivery.deliveredAt = new Date();
+        delivery.status = 'DELIVERED';
+        delivery.deliveredBy = {
+            userId: userId,
+            role: userRole
+        };
+
+        // Add to status history
+        delivery.addStatusHistory(
+            'DELIVERED',
+            { role: userRole, id: userId },
+            'Delivery completed'
+        );
+
+        await delivery.save();
+
+        res.json({
+            success: true,
+            message: 'Delivery marked as completed successfully',
+            delivery
+        });
+    } catch (error) {
+        console.error('Error marking delivery as completed:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark delivery as completed',
+            error: error.message
+        });
+    }
+};
+
+// ============================================================================
+// ADMIN: Override delivery details with reason logging
+// POST /api/deliveries/:id/admin-override
+// ============================================================================
+exports.adminOverride = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason, action, updates } = req.body;
+        const adminId = req.user?.userId;
+
+        // Validate required fields
+        if (!reason || !action || !updates) {
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields: reason, action, updates'
+            });
+        }
+
+        // Find delivery
+        const delivery = await Delivery.findById(id);
+        if (!delivery) {
+            return res.status(404).json({
+                success: false,
+                message: 'Delivery record not found'
+            });
+        }
+
+        // Store old values for logging
+        const oldValues = {};
+        const newValues = {};
+
+        // Apply updates and log changes
+        for (const [field, newValue] of Object.entries(updates)) {
+            if (delivery[field] !== undefined) {
+                oldValues[field] = delivery[field];
+                newValues[field] = newValue;
+                delivery[field] = newValue;
+            }
+        }
+
+        // Log admin override
+        delivery.logAdminOverride(adminId, reason, action, oldValues, newValues);
+
+        // Add to status history if status was changed
+        if (updates.status) {
+            delivery.addStatusHistory(
+                updates.status,
+                { role: 'admin', id: adminId },
+                `Admin override: ${reason}`
+            );
+        }
+
+        await delivery.save();
+
+        res.json({
+            success: true,
+            message: 'Admin override applied successfully',
+            delivery,
+            override: {
+                reason,
+                action,
+                oldValues,
+                newValues
+            }
+        });
+    } catch (error) {
+        console.error('Error applying admin override:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to apply admin override',
+            error: error.message
+        });
+    }
+};
+
+// ============================================================================
+// GET: Delivery by order ID
+// ============================================================================
+exports.getDeliveryByOrderId = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+
+        const delivery = await Delivery.findOne({ orderId })
+            .populate('orderId', 'orderId totalAmount status items')
             .populate('customerId', 'name email phone');
 
         if (!delivery) {
             return res.status(404).json({
                 success: false,
-                message: 'Delivery record not found'
+                message: 'Delivery record not found for this order'
             });
         }
 
@@ -87,13 +340,15 @@ exports.getDeliveryByBookingId = async (req, res) => {
     }
 };
 
-// Get all deliveries for a customer
+// ============================================================================
+// GET: All deliveries for a customer
+// ============================================================================
 exports.getCustomerDeliveries = async (req, res) => {
     try {
         const { customerId } = req.params;
 
         const deliveries = await Delivery.find({ customerId, isActive: true })
-            .populate('bookingId', 'orderDetails pricing status timeline')
+            .populate('orderId', 'orderId totalAmount status items')
             .sort({ createdAt: -1 });
 
         res.json({
@@ -111,151 +366,16 @@ exports.getCustomerDeliveries = async (req, res) => {
     }
 };
 
-// Update vendor dispatch status
-exports.updateVendorDispatch = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { status, trackingNumber, courierName, estimatedDelivery, notes } = req.body;
-        const vendorId = req.user?.userId; // From auth middleware
-
-        const delivery = await Delivery.findById(id);
-        if (!delivery) {
-            return res.status(404).json({
-                success: false,
-                message: 'Delivery record not found'
-            });
-        }
-
-        // Check if booking type requires vendor dispatch
-        if (delivery.bookingType === 'tailor') {
-            return res.status(400).json({
-                success: false,
-                message: 'Tailor-only bookings do not require vendor dispatch'
-            });
-        }
-
-        // Update vendor dispatch details
-        delivery.vendorDispatch.status = status || delivery.vendorDispatch.status;
-        if (trackingNumber) delivery.vendorDispatch.trackingNumber = trackingNumber;
-        if (courierName) delivery.vendorDispatch.courierName = courierName;
-        if (estimatedDelivery) delivery.vendorDispatch.estimatedDelivery = estimatedDelivery;
-        if (notes) delivery.vendorDispatch.notes = notes;
-        delivery.vendorDispatch.updatedBy = vendorId;
-
-        // Update timestamps based on status
-        if (status === 'dispatched' && !delivery.vendorDispatch.dispatchedAt) {
-            delivery.vendorDispatch.dispatchedAt = new Date();
-        }
-        if (status === 'delivered_to_tailor' && !delivery.vendorDispatch.deliveredToTailorAt) {
-            delivery.vendorDispatch.deliveredToTailorAt = new Date();
-        }
-
-        // Add to status history
-        delivery.addStatusHistory(
-            status,
-            'vendor_dispatch',
-            { role: 'vendor', id: vendorId },
-            notes || `Vendor dispatch status updated to ${status}`
-        );
-
-        // Update overall status
-        delivery.updateOverallStatus();
-
-        await delivery.save();
-
-        res.json({
-            success: true,
-            message: 'Vendor dispatch status updated successfully',
-            delivery
-        });
-    } catch (error) {
-        console.error('Error updating vendor dispatch:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update vendor dispatch status',
-            error: error.message
-        });
-    }
-};
-
-// Update tailor delivery status
-exports.updateTailorDelivery = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const {
-            status,
-            deliveryMethod,
-            trackingNumber,
-            courierName,
-            notes,
-            failureReason
-        } = req.body;
-        const tailorId = req.user?.userId; // From auth middleware
-
-        const delivery = await Delivery.findById(id);
-        if (!delivery) {
-            return res.status(404).json({
-                success: false,
-                message: 'Delivery record not found'
-            });
-        }
-
-        // Update tailor delivery details
-        delivery.tailorDelivery.status = status || delivery.tailorDelivery.status;
-        if (deliveryMethod) delivery.tailorDelivery.deliveryMethod = deliveryMethod;
-        if (trackingNumber) delivery.tailorDelivery.trackingNumber = trackingNumber;
-        if (courierName) delivery.tailorDelivery.courierName = courierName;
-        if (notes) delivery.tailorDelivery.notes = notes;
-        if (failureReason) delivery.tailorDelivery.failureReason = failureReason;
-        delivery.tailorDelivery.updatedBy = tailorId;
-
-        // Update timestamps based on status
-        if (status === 'ready_for_delivery' && !delivery.tailorDelivery.readyAt) {
-            delivery.tailorDelivery.readyAt = new Date();
-        }
-        if (status === 'out_for_delivery' && !delivery.tailorDelivery.dispatchedAt) {
-            delivery.tailorDelivery.dispatchedAt = new Date();
-        }
-        if (status === 'delivered' && !delivery.tailorDelivery.deliveredAt) {
-            delivery.tailorDelivery.deliveredAt = new Date();
-        }
-
-        // Add to status history
-        delivery.addStatusHistory(
-            status,
-            'tailor_delivery',
-            { role: 'tailor', id: tailorId },
-            notes || `Tailor delivery status updated to ${status}`
-        );
-
-        // Update overall status
-        delivery.updateOverallStatus();
-
-        await delivery.save();
-
-        res.json({
-            success: true,
-            message: 'Tailor delivery status updated successfully',
-            delivery
-        });
-    } catch (error) {
-        console.error('Error updating tailor delivery:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update tailor delivery status',
-            error: error.message
-        });
-    }
-};
-
-// Get delivery tracking information (customer view)
+// ============================================================================
+// GET: Delivery tracking information (customer view)
+// ============================================================================
 exports.getDeliveryTracking = async (req, res) => {
     try {
-        const { bookingId } = req.params;
+        const { orderId } = req.params;
 
-        const delivery = await Delivery.findOne({ bookingId })
-            .populate('bookingId', 'orderDetails timeline status')
-            .select('-__v');
+        const delivery = await Delivery.findOne({ orderId })
+            .populate('orderId', 'orderId totalAmount status')
+            .select('-__v -adminOverrides'); // Hide admin overrides from customer view
 
         if (!delivery) {
             return res.status(404).json({
@@ -266,27 +386,14 @@ exports.getDeliveryTracking = async (req, res) => {
 
         // Format tracking information for customer view
         const trackingInfo = {
-            bookingId: delivery.bookingId,
-            overallStatus: delivery.overallStatus,
-            bookingType: delivery.bookingType,
+            orderId: delivery.orderId,
+            deliveryType: delivery.deliveryType,
+            status: delivery.status,
+            courierName: delivery.courierName || 'Not yet dispatched',
+            trackingId: delivery.trackingId || 'Not yet dispatched',
+            dispatchedAt: delivery.dispatchedAt,
+            deliveredAt: delivery.deliveredAt,
             deliveryAddress: delivery.deliveryAddress,
-            vendorDispatch: delivery.bookingType !== 'tailor' ? {
-                status: delivery.vendorDispatch.status,
-                trackingNumber: delivery.vendorDispatch.trackingNumber,
-                courierName: delivery.vendorDispatch.courierName,
-                dispatchedAt: delivery.vendorDispatch.dispatchedAt,
-                estimatedDelivery: delivery.vendorDispatch.estimatedDelivery,
-                deliveredToTailorAt: delivery.vendorDispatch.deliveredToTailorAt
-            } : null,
-            tailorDelivery: {
-                status: delivery.tailorDelivery.status,
-                deliveryMethod: delivery.tailorDelivery.deliveryMethod,
-                trackingNumber: delivery.tailorDelivery.trackingNumber,
-                courierName: delivery.tailorDelivery.courierName,
-                readyAt: delivery.tailorDelivery.readyAt,
-                dispatchedAt: delivery.tailorDelivery.dispatchedAt,
-                deliveredAt: delivery.tailorDelivery.deliveredAt
-            },
             timeline: delivery.statusHistory.sort((a, b) => b.timestamp - a.timestamp)
         };
 
@@ -304,17 +411,19 @@ exports.getDeliveryTracking = async (req, res) => {
     }
 };
 
-// Get all deliveries (admin view)
+// ============================================================================
+// GET: All deliveries (admin view)
+// ============================================================================
 exports.getAllDeliveries = async (req, res) => {
     try {
-        const { status, bookingType, page = 1, limit = 20 } = req.query;
+        const { status, deliveryType, page = 1, limit = 20 } = req.query;
 
         const filter = { isActive: true };
-        if (status) filter.overallStatus = status;
-        if (bookingType) filter.bookingType = bookingType;
+        if (status) filter.status = status;
+        if (deliveryType) filter.deliveryType = deliveryType;
 
         const deliveries = await Delivery.find(filter)
-            .populate('bookingId', 'orderDetails pricing status timeline')
+            .populate('orderId', 'orderId totalAmount status items')
             .populate('customerId', 'name email phone')
             .sort({ createdAt: -1 })
             .limit(limit * 1)
@@ -326,7 +435,7 @@ exports.getAllDeliveries = async (req, res) => {
             success: true,
             deliveries,
             totalPages: Math.ceil(count / limit),
-            currentPage: page,
+            currentPage: parseInt(page),
             totalDeliveries: count
         });
     } catch (error) {
@@ -339,12 +448,16 @@ exports.getAllDeliveries = async (req, res) => {
     }
 };
 
-// Get delivery status history
+// ============================================================================
+// GET: Delivery status history
+// ============================================================================
 exports.getDeliveryHistory = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const delivery = await Delivery.findById(id).select('statusHistory');
+        const delivery = await Delivery.findById(id)
+            .select('statusHistory adminOverrides');
+
         if (!delivery) {
             return res.status(404).json({
                 success: false,
@@ -354,7 +467,10 @@ exports.getDeliveryHistory = async (req, res) => {
 
         res.json({
             success: true,
-            history: delivery.statusHistory.sort((a, b) => b.timestamp - a.timestamp)
+            history: {
+                statusHistory: delivery.statusHistory.sort((a, b) => b.timestamp - a.timestamp),
+                adminOverrides: delivery.adminOverrides.sort((a, b) => b.timestamp - a.timestamp)
+            }
         });
     } catch (error) {
         console.error('Error fetching delivery history:', error);

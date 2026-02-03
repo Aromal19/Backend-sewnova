@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const axios = require('axios');
 const Order = require('../models/order');
 const Booking = require('../models/booking');
 
@@ -37,7 +38,7 @@ const createOrderFromBooking = async (req, res) => {
 
     // Create order items based on booking type
     const items = [];
-    
+
     if (booking.bookingType === 'tailor' || booking.bookingType === 'complete') {
       items.push({
         serviceType: 'tailor',
@@ -87,6 +88,59 @@ const createOrderFromBooking = async (req, res) => {
 
     await order.save();
 
+    // ============================================================================
+    // AUTO-CREATE DELIVERY RECORD
+    // ============================================================================
+    try {
+      const deliveryServiceUrl = process.env.DELIVERY_SERVICE_URL || 'http://localhost:3008';
+
+      // Prepare delivery address from booking
+      let deliveryAddressData = {};
+      if (booking.deliveryAddress) {
+        // If deliveryAddress is an ObjectId, we need to populate it first
+        if (typeof booking.deliveryAddress === 'object' && booking.deliveryAddress._id) {
+          deliveryAddressData = {
+            street: booking.deliveryAddress.street || '',
+            city: booking.deliveryAddress.city || '',
+            state: booking.deliveryAddress.state || '',
+            pincode: booking.deliveryAddress.pincode || '',
+            country: booking.deliveryAddress.country || '',
+            phone: booking.deliveryAddress.phone || '',
+            landmark: booking.deliveryAddress.landmark || ''
+          };
+        }
+      }
+
+      // Create delivery record
+      await axios.post(`${deliveryServiceUrl}/api/deliveries`, {
+        orderId: order._id,
+        customerId: customerId,
+        orderItems: items,
+        deliveryAddress: deliveryAddressData
+      });
+
+      console.log('✅ Delivery record created successfully for order:', order._id);
+
+      // ============================================================================
+      // NEW: AUTO-CREATE ORDER-DELIVERY RECORD (Parallel System)
+      // ============================================================================
+      try {
+        await axios.post(`${deliveryServiceUrl}/api/order-deliveries/internal/create`, {
+          orderId: order._id,
+          bookingType: booking.bookingType,
+          items: items
+        });
+        console.log('✅ OrderDelivery (New System) record created successfully');
+      } catch (newDeliveryError) {
+        console.error('⚠️ Failed to create OrderDelivery record:', newDeliveryError.message);
+      }
+
+    } catch (deliveryError) {
+      // Log error but don't fail order creation
+      console.error('⚠️ Failed to create delivery record (non-critical):', deliveryError.message);
+      // Delivery can be created manually later if needed
+    }
+
     res.json({
       success: true,
       message: 'Order created successfully',
@@ -104,11 +158,11 @@ const createOrderFromBooking = async (req, res) => {
 // Get customer orders
 const getCustomerOrders = async (req, res) => {
   try {
-    const orders = await Order.find({ 
-      customerId: req.user._id 
+    const orders = await Order.find({
+      customerId: req.user._id
     })
-    .populate('bookingId', 'bookingType orderDetails status')
-    .sort({ createdAt: -1 });
+      .populate('bookingId', 'bookingType orderDetails status')
+      .sort({ createdAt: -1 });
 
     res.json({
       success: true,
@@ -165,7 +219,7 @@ const updateOrderStatus = async (req, res) => {
 
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         status,
         updatedAt: new Date()
       },
@@ -196,30 +250,30 @@ const updateOrderStatus = async (req, res) => {
 // Admin endpoints - Get all orders
 const getAllOrdersForAdmin = async (req, res) => {
   try {
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
-      customerId, 
-      sortBy = 'createdAt', 
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      customerId,
+      sortBy = 'createdAt',
       sortOrder = 'desc',
-      search 
+      search
     } = req.query;
 
     // Build filter object
     const filter = {};
-    
+
     if (status) {
       filter.status = status;
     }
-    
+
     if (customerId) {
       filter.customerId = new mongoose.Types.ObjectId(customerId);
     }
 
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Build sort object
     const sort = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
@@ -301,16 +355,16 @@ const updateOrderStatusForAdmin = async (req, res) => {
 
     const order = await Order.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         status,
         notes: notes || order.notes,
         updatedAt: new Date()
       },
       { new: true }
     )
-    .populate('customerId', 'firstname lastname email phone')
-    .populate('bookingId', 'bookingType orderDetails status tailorDetails fabricDetails')
-    .populate('deliveryAddress');
+      .populate('customerId', 'firstname lastname email phone')
+      .populate('bookingId', 'bookingType orderDetails status tailorDetails fabricDetails')
+      .populate('deliveryAddress');
 
     if (!order) {
       return res.status(404).json({
@@ -392,25 +446,25 @@ const getAllBookingsForAdmin = async (req, res) => {
     console.log('🔍 Customer Service: getAllBookingsForAdmin called');
     console.log('📋 Request query:', req.query);
     console.log('👤 User:', req.user ? `${req.user.email} (${req.user.role})` : 'No user');
-    
-    const { 
-      page = 1, 
-      limit = 10, 
-      status, 
-      customerId, 
+
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      customerId,
       bookingType,
-      sortBy = 'createdAt', 
+      sortBy = 'createdAt',
       sortOrder = 'desc',
-      search 
+      search
     } = req.query;
 
     // Build filter object
     const filter = {};
-    
+
     if (status) {
       filter.status = status;
     }
-    
+
     if (customerId) {
       try {
         filter.customerId = new mongoose.Types.ObjectId(customerId);
@@ -430,7 +484,7 @@ const getAllBookingsForAdmin = async (req, res) => {
     if (search) {
       // Check if search is a valid ObjectId (for tailor ID filtering)
       const isObjectId = /^[0-9a-fA-F]{24}$/.test(search);
-      
+
       if (isObjectId) {
         // If search is an ObjectId, filter by tailorId
         filter.tailorId = new mongoose.Types.ObjectId(search);
@@ -448,7 +502,7 @@ const getAllBookingsForAdmin = async (req, res) => {
 
     // Calculate pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
-    
+
     // Build sort object
     const sort = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
@@ -532,17 +586,17 @@ const updateBookingStatusForAdmin = async (req, res) => {
 
     const booking = await Booking.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         status,
         updatedAt: new Date()
       },
       { new: true }
     )
-    .populate('customerId', 'firstname lastname email phone')
-    .populate('tailorId', 'name location rating specialization')
-    .populate('fabricId')
-    .populate('measurementId')
-    .populate('deliveryAddress');
+      .populate('customerId', 'firstname lastname email phone')
+      .populate('tailorId', 'name location rating specialization')
+      .populate('fabricId')
+      .populate('measurementId')
+      .populate('deliveryAddress');
 
     if (!booking) {
       return res.status(404).json({

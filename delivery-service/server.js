@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 3008;
 
 // Import routes
 const deliveryRoutes = require('./routes/deliveryRoutes');
+const orderDeliveryRoutes = require('./routes/orderDeliveryRoutes');
 
 // CORS configuration
 const allowedOrigins = [
@@ -85,6 +86,7 @@ app.get('/api/test', (req, res) => {
 
 // API routes
 app.use('/api/deliveries', deliveryRoutes);
+app.use('/api/order-deliveries', orderDeliveryRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

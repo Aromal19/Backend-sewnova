@@ -3,7 +3,6 @@ const mongoose = require('mongoose');
 const fabricSchema = new mongoose.Schema({
     sellerId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Seller',
         required: true
     },
     name: {

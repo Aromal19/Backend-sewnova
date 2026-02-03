@@ -1,115 +1,67 @@
 const mongoose = require('mongoose');
 
 const deliverySchema = new mongoose.Schema({
-    // Reference to booking
-    bookingId: {
+    // Reference to order (changed from bookingId)
+    orderId: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Booking',
+        ref: 'Order',
         required: true,
+        unique: true, // One delivery per order
         index: true
     },
+
     customerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Customer',
         required: true,
         index: true
     },
-    bookingType: {
+
+    // Delivery type: FABRIC (vendor→user) or GARMENT (tailor→user)
+    deliveryType: {
         type: String,
-        enum: ['tailor', 'fabric', 'complete'],
-        required: true
+        enum: ['FABRIC', 'GARMENT'],
+        required: true,
+        index: true
     },
 
-    // Vendor dispatch tracking (for fabric/complete bookings)
-    vendorDispatch: {
-        status: {
-            type: String,
-            enum: ['pending', 'dispatched', 'in_transit', 'delivered_to_tailor'],
-            default: 'pending'
-        },
-        dispatchedAt: {
-            type: Date,
-            default: null
-        },
-        deliveredToTailorAt: {
-            type: Date,
-            default: null
-        },
-        trackingNumber: {
-            type: String,
-            trim: true,
-            default: ''
-        },
-        courierName: {
-            type: String,
-            trim: true,
-            default: ''
-        },
-        estimatedDelivery: {
-            type: Date,
-            default: null
-        },
-        notes: {
-            type: String,
-            trim: true,
-            default: ''
-        },
-        updatedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Vendor',
-            default: null
-        }
+    // Simplified status: CREATED → DISPATCHED → DELIVERED
+    status: {
+        type: String,
+        enum: ['CREATED', 'DISPATCHED', 'DELIVERED'],
+        default: 'CREATED',
+        required: true,
+        index: true
     },
 
-    // Tailor delivery tracking
-    tailorDelivery: {
-        status: {
-            type: String,
-            enum: ['pending', 'ready_for_delivery', 'out_for_delivery', 'delivered', 'failed'],
-            default: 'pending'
-        },
-        readyAt: {
-            type: Date,
-            default: null
-        },
-        dispatchedAt: {
-            type: Date,
-            default: null
-        },
-        deliveredAt: {
-            type: Date,
-            default: null
-        },
-        deliveryMethod: {
-            type: String,
-            enum: ['courier', 'pickup', 'hand_delivery'],
-            default: 'courier'
-        },
-        trackingNumber: {
-            type: String,
-            trim: true,
-            default: ''
-        },
-        courierName: {
-            type: String,
-            trim: true,
-            default: ''
-        },
-        notes: {
-            type: String,
-            trim: true,
-            default: ''
-        },
-        updatedBy: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Tailor',
-            default: null
-        },
-        failureReason: {
-            type: String,
-            trim: true,
-            default: ''
-        }
+    // Dispatch details
+    courierName: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+
+    trackingId: {
+        type: String,
+        trim: true,
+        default: ''
+    },
+
+    // Immutability lock - once dispatch details are submitted, they cannot be changed
+    isLocked: {
+        type: Boolean,
+        default: false
+    },
+
+    // Timestamps
+    dispatchedAt: {
+        type: Date,
+        default: null
+    },
+
+    deliveredAt: {
+        type: Date,
+        default: null
     },
 
     // Delivery address snapshot
@@ -123,29 +75,69 @@ const deliverySchema = new mongoose.Schema({
         landmark: String
     },
 
-    // Overall status
-    overallStatus: {
-        type: String,
-        enum: ['pending', 'in_progress', 'delivered', 'failed'],
-        default: 'pending',
-        index: true
+    // Who submitted dispatch details (vendor or tailor)
+    dispatchedBy: {
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null
+        },
+        role: {
+            type: String,
+            enum: ['seller', 'tailor', 'admin']
+        }
     },
 
-    // Timeline - status history
+    // Who marked as delivered
+    deliveredBy: {
+        userId: {
+            type: mongoose.Schema.Types.ObjectId,
+            default: null
+        },
+        role: {
+            type: String,
+            enum: ['seller', 'tailor', 'admin']
+        }
+    },
+
+    // Admin override logging
+    adminOverrides: [{
+        adminId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Admin',
+            required: true
+        },
+        timestamp: {
+            type: Date,
+            default: Date.now
+        },
+        reason: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        action: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        oldValue: {
+            type: mongoose.Schema.Types.Mixed
+        },
+        newValue: {
+            type: mongoose.Schema.Types.Mixed
+        }
+    }],
+
+    // Status history - audit trail
     statusHistory: [{
         status: {
             type: String,
             required: true
         },
-        phase: {
-            type: String,
-            enum: ['vendor_dispatch', 'tailor_delivery', 'overall'],
-            required: true
-        },
         updatedBy: {
             role: {
                 type: String,
-                enum: ['vendor', 'tailor', 'admin', 'system'],
+                enum: ['seller', 'tailor', 'admin', 'system'],
                 required: true
             },
             id: {
@@ -169,10 +161,12 @@ const deliverySchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+
     createdAt: {
         type: Date,
         default: Date.now
     },
+
     updatedAt: {
         type: Date,
         default: Date.now
@@ -180,11 +174,11 @@ const deliverySchema = new mongoose.Schema({
 });
 
 // Indexes for efficient queries
-deliverySchema.index({ bookingId: 1 });
-deliverySchema.index({ customerId: 1, overallStatus: 1 });
-deliverySchema.index({ 'vendorDispatch.status': 1 });
-deliverySchema.index({ 'tailorDelivery.status': 1 });
+deliverySchema.index({ orderId: 1 });
+deliverySchema.index({ customerId: 1, status: 1 });
+deliverySchema.index({ deliveryType: 1, status: 1 });
 deliverySchema.index({ createdAt: -1 });
+deliverySchema.index({ status: 1, deliveryType: 1 });
 
 // Update timestamp on save
 deliverySchema.pre('save', function (next) {
@@ -193,40 +187,47 @@ deliverySchema.pre('save', function (next) {
 });
 
 // Method to add status history entry
-deliverySchema.methods.addStatusHistory = function (status, phase, updatedBy, notes = '') {
+deliverySchema.methods.addStatusHistory = function (status, updatedBy, notes = '') {
     this.statusHistory.push({
         status,
-        phase,
         updatedBy,
         timestamp: new Date(),
         notes
     });
 };
 
-// Method to update overall status based on vendor and tailor status
-deliverySchema.methods.updateOverallStatus = function () {
-    const vendorStatus = this.vendorDispatch.status;
-    const tailorStatus = this.tailorDelivery.status;
+// Method to validate state transition
+deliverySchema.methods.canTransitionTo = function (newStatus) {
+    const validTransitions = {
+        'CREATED': ['DISPATCHED'],
+        'DISPATCHED': ['DELIVERED'],
+        'DELIVERED': [] // Terminal state
+    };
 
-    // If tailor delivery is delivered, overall is delivered
-    if (tailorStatus === 'delivered') {
-        this.overallStatus = 'delivered';
-    }
-    // If tailor delivery failed, overall is failed
-    else if (tailorStatus === 'failed') {
-        this.overallStatus = 'failed';
-    }
-    // If any phase is in progress, overall is in progress
-    else if (
-        vendorStatus !== 'pending' ||
-        tailorStatus !== 'pending'
-    ) {
-        this.overallStatus = 'in_progress';
-    }
-    // Otherwise, it's pending
-    else {
-        this.overallStatus = 'pending';
-    }
+    return validTransitions[this.status]?.includes(newStatus) || false;
+};
+
+// Method to log admin override
+deliverySchema.methods.logAdminOverride = function (adminId, reason, action, oldValue, newValue) {
+    this.adminOverrides.push({
+        adminId,
+        timestamp: new Date(),
+        reason,
+        action,
+        oldValue,
+        newValue
+    });
+};
+
+// Static method to determine delivery type from order
+deliverySchema.statics.determineDeliveryType = function (orderItems) {
+    // If order contains tailoring service → GARMENT
+    // If order contains only fabric → FABRIC
+    const hasTailoringService = orderItems.some(item =>
+        item.serviceType === 'tailor' || item.serviceType === 'complete'
+    );
+
+    return hasTailoringService ? 'GARMENT' : 'FABRIC';
 };
 
 module.exports = mongoose.model('Delivery', deliverySchema);

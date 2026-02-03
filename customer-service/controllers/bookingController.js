@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 const Booking = require('../models/booking');
+const Fabric = require('../models/fabric');
+const Customer = require('../models/customer');
 const Order = require('../models/order');
 const Tailor = require('../models/tailor');
-const Fabric = require('../models/fabric');
 const { sendNewOrderNotification, sendPaymentConfirmationEmail, sendOrderStatusUpdateEmail } = require('../utils/orderEmailService');
 
 // Get customer bookings
@@ -369,8 +370,9 @@ const createBooking = async (req, res) => {
     if ((bookingType === 'tailor' || bookingType === 'complete') && !tailorId) {
       return res.status(400).json({ success: false, message: 'tailorId is required for this booking type' });
     }
-    if (!measurementId && (!measurementSnapshot || Object.keys(measurementSnapshot).length === 0)) {
-      return res.status(400).json({ success: false, message: 'Provide measurementId or measurementSnapshot' });
+    // Only require measurements for tailor and complete bookings, not for fabric-only
+    if ((bookingType === 'tailor' || bookingType === 'complete') && !measurementId && (!measurementSnapshot || Object.keys(measurementSnapshot).length === 0)) {
+      return res.status(400).json({ success: false, message: 'Provide measurementId or measurementSnapshot for tailor bookings' });
     }
 
     // Get customerId from request body (for payment service calls) or from authenticated user
@@ -427,6 +429,32 @@ const createBooking = async (req, res) => {
       return res.status(400).json({ success: false, message: 'tailorId is invalid or missing' });
     }
 
+    // ENRICH DATA: Fetch Fabric to ensure sellerId is captured
+    let finalFabricDetails = fabricDetails || {};
+    if (fabricObjectId) {
+      try {
+        const fabricDoc = await Fabric.findById(fabricObjectId);
+        if (fabricDoc) {
+          console.log('🧵 Found Fabric for Booking:', fabricDoc.name, 'Seller:', fabricDoc.sellerId);
+          finalFabricDetails = {
+            ...finalFabricDetails,
+            sellerId: fabricDoc.sellerId, // Critical: Enforce Link
+            name: finalFabricDetails.name || fabricDoc.name,
+            type: finalFabricDetails.type || fabricDoc.type,
+            price: finalFabricDetails.price || fabricDoc.price,
+            color: finalFabricDetails.color || fabricDoc.color,
+            pattern: finalFabricDetails.pattern || fabricDoc.pattern
+          };
+        } else {
+          console.warn('⚠️ Fabric ID provided but Fabric not found:', fabricObjectId);
+          console.warn('⚠️ Proceeding with booking creation without seller details');
+        }
+      } catch (err) {
+        console.error('⚠️ Error fetching fabric for details:', err);
+        console.warn('⚠️ Proceeding with booking creation without seller details');
+      }
+    }
+
     // Fetch customer email for the booking
     let customerEmail = null;
     try {
@@ -458,6 +486,7 @@ const createBooking = async (req, res) => {
       userEmail: customerEmail,
       bookingType,
       tailorId: tailorObjectId,
+      sellerId: finalFabricDetails.sellerId, // Enforce Root Level Seller ID
       fabricId: fabricObjectId,
       measurementId: measurementObjectId,
       measurementSnapshot: measurementSnapshot || undefined,
@@ -490,7 +519,7 @@ const createBooking = async (req, res) => {
       },
       status: 'confirmed', // Set status to confirmed for paid bookings
       tailorDetails: tailorDetails || undefined,
-      fabricDetails: fabricDetails || undefined
+      fabricDetails: Object.keys(finalFabricDetails).length > 0 ? finalFabricDetails : undefined
     });
 
     // Save booking to database FIRST
