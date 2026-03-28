@@ -1,0 +1,61 @@
+services:
+  # Main Backend Service (API Gateway + All Microservices)
+  - type: web
+    name: sewnova-backend
+    env: node
+    plan: free
+    buildCommand: |
+      npm install --prefix auth-service &&
+      npm install --prefix customer-service &&
+      npm install --prefix admin-service &&
+      npm install --prefix design-service &&
+      npm install --prefix tailor-service &&
+      npm install --prefix vendor-service &&
+      npm install --prefix payment-service &&
+      npm install --prefix delivery-service
+    startCommand: node start-all-services.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Internal service ports (not exposed publicly — gateway uses PORT)
+      - key: AUTH_SERVICE_PORT
+        value: 3001
+      - key: CUSTOMER_SERVICE_PORT
+        value: 3002
+      - key: ADMIN_SERVICE_PORT
+        value: 3003
+      - key: DESIGN_SERVICE_PORT
+        value: 3004
+      - key: TAILOR_SERVICE_PORT
+        value: 3005
+      - key: VENDOR_SERVICE_PORT
+        value: 3006
+      - key: PAYMENT_SERVICE_PORT
+        value: 3007
+      - key: DELIVERY_SERVICE_PORT
+        value: 3008
+      # Secrets — set manually in Render dashboard
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: EMAIL_SERVICE_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
