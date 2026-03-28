@@ -961,6 +961,47 @@ const handlePaymentSuccess = async (req, res) => {
 
     console.log('✅ Booking updated in database successfully:', updatedBooking._id);
 
+    // ============================================================================
+    // AUTO-CREATE DELIVERY RECORDS (New System)
+    // ============================================================================
+    try {
+      const deliveryServiceUrl = process.env.DELIVERY_SERVICE_URL || 'http://localhost:3008';
+
+      console.log('📦 Creating delivery records for booking:', updatedBooking._id);
+
+      // Create OrderDelivery records (new system)
+      try {
+        await axios.post(`${deliveryServiceUrl}/api/order-deliveries/internal/create`, {
+          orderId: updatedBooking._id,
+          bookingType: updatedBooking.bookingType,
+          items: []
+        });
+        console.log('✅ OrderDelivery records created successfully');
+      } catch (newDeliveryError) {
+        console.error('⚠️ Failed to create OrderDelivery records:', newDeliveryError.message);
+      }
+
+      // Create legacy delivery record for backward compatibility
+      try {
+        await axios.post(`${deliveryServiceUrl}/api/deliveries`, {
+          orderId: updatedBooking._id,
+          customerId: updatedBooking.customerId,
+          orderItems: [],
+          deliveryAddress: updatedBooking.deliveryAddress || {}
+        });
+        console.log('✅ Legacy delivery record created successfully');
+      } catch (legacyDeliveryError) {
+        // Ignore if already exists
+        if (!legacyDeliveryError.response?.data?.message?.includes('already exists')) {
+          console.error('⚠️ Failed to create legacy delivery record:', legacyDeliveryError.message);
+        }
+      }
+
+    } catch (deliveryError) {
+      // Log error but don't fail payment success
+      console.error('⚠️ Failed to create delivery records (non-critical):', deliveryError.message);
+    }
+
     // NOW send emails AFTER database is updated
     console.log('📧 Sending emails after successful database update...');
 

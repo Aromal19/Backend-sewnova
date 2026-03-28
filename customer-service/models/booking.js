@@ -76,7 +76,7 @@ const bookingSchema = new mongoose.Schema({
   orderDetails: {
     garmentType: {
       type: String,
-      enum: ['shirt', 'pants', 'dress', 'suit', 'kurta', 'saree', 'lehenga', 'other'],
+      enum: ['shirt', 'pants', 'dress', 'suit', 'kurta', 'mens-kurta', 'saree', 'lehenga', 'other'],
       required: true
     },
     quantity: {

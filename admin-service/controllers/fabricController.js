@@ -5,20 +5,28 @@ exports.estimateFabricRequirements = async (req, res) => {
     try {
         const { garmentType, measurements } = req.body;
 
-        // 1. Basic Validation
-        if (!garmentType || !measurements) {
-            return res.status(400).json({ error: 'Missing required fields: garmentType, measurements' });
+        // 1. Strict Validation — fail loudly
+        if (!garmentType) {
+            return res.status(400).json({ error: 'Missing required field: garmentType' });
+        }
+        if (!measurements || typeof measurements !== 'object' || Object.keys(measurements).length === 0) {
+            return res.status(400).json({ error: 'Missing or empty measurements object' });
         }
 
-        // 2. Step 2: Size Matching
-        // This is a blocking internal call to the reliable service we built
+        console.log(`\n${'═'.repeat(60)}`);
+        console.log(`📐 FABRIC ESTIMATION: ${garmentType}`);
+        console.log(`   Measurements:`, measurements);
+        console.log(`${'═'.repeat(60)}`);
+
+        // 2. Size Matching
         const sizeResult = await sizeMatchingService.determineSize(garmentType, measurements);
+        console.log(`   Size Result: ${sizeResult.selectedSize} (oversize: ${sizeResult.isOversize})`);
 
-        // 3. Step 3: Fabric Calculation
-        // Uses the output of Step 2 + authoritative rules
+        // 3. Fabric Calculation
         const fabricResult = await fabricCalculationService.calculateFabric(garmentType, sizeResult, measurements);
+        console.log(`   Fabric Result: ${fabricResult.finalMeters}m`);
 
-        // 4. Construct Response (Authoritative Data)
+        // 4. Response
         const responsePayload = {
             garmentType: garmentType,
             selectedSize: sizeResult.selectedSize,
@@ -33,10 +41,18 @@ exports.estimateFabricRequirements = async (req, res) => {
             ]
         };
 
+        console.log(`   ✅ Final: ${fabricResult.finalMeters}m for ${garmentType} (${sizeResult.selectedSize})`);
+        console.log(`${'═'.repeat(60)}\n`);
+
         res.status(200).json(responsePayload);
 
     } catch (error) {
-        console.error('Fabric Estimation Error:', error);
+        console.error('❌ Fabric Estimation Error:', error.message);
+
+        // Distinguish configuration errors from internal errors
+        if (error.message.includes('not configured')) {
+            return res.status(400).json({ error: error.message });
+        }
         res.status(500).json({ error: error.message });
     }
 };

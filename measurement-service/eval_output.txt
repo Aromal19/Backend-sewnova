@@ -1,0 +1,148 @@
+﻿python : INFO: Created TensorFlow Lite XNNPACK 
+delegate for CPU.
+At line:1 char:1
++ python run_evaluation.py 2>&1 | Out-File -FilePath 
+eval_output.txt -E ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (INFO: 
+Created T    ...legate for CPU.:String) [], 
+RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+WARNING: All log messages before 
+absl::InitializeLog() is called are written to STDERR
+W0000 00:00:1772563925.314860   21276 
+inference_feedback_manager.cc:114] Feedback manager 
+requires a model with a single signature inference. 
+Disabling support for feedback tensors.
+W0000 00:00:1772563925.459015   18996 
+inference_feedback_manager.cc:114] Feedback manager 
+requires a model with a single signature inference. 
+Disabling support for feedback tensors.
+Using cache found in C:\Users\LENOVO/.cache\torch\hub\
+intel-isl_MiDaS_master
+C:\Users\LENOVO\AppData\Local\Packages\PythonSoftwareF
+oundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-p
+ackages\Python311\site-packages\timm\models\layers\__i
+nit__.py:48: FutureWarning: Importing from 
+timm.models.layers is deprecated, please import via 
+timm.layers
+  warnings.warn(f"Importing from {__name__} is 
+deprecated, please import via timm.layers", 
+FutureWarning)
+C:\Users\LENOVO\AppData\Local\Packages\PythonSoftwareF
+oundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-p
+ackages\Python311\site-packages\timm\models\_factory.p
+y:138: UserWarning: Mapping deprecated model name 
+vit_base_resnet50_384 to current 
+vit_base_r50_s16_384.orig_in21k_ft_in1k.
+  model = create_fn(
+Using cache found in C:\Users\LENOVO/.cache\torch\hub\
+intel-isl_MiDaS_master
+Using a slow image processor as `use_fast` is unset 
+and a slow processor was saved with this model. 
+`use_fast=True` will be the default behavior in 
+v4.52, even if the model was saved with a slow 
+processor. This will result in minor differences in 
+outputs. You'll still be able to use a slow processor 
+with `use_fast=False`.
+C:\Users\LENOVO\AppData\Local\Packages\PythonSoftwareF
+oundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-p
+ackages\Python311\site-packages\transformers\image_pro
+cessing_base.py:417: UserWarning: The following named 
+arguments are not valid for 
+`SegformerImageProcessor.__init__` and were ignored: 
+'reduce_labels'
+  image_processor = cls(**image_processor_dict)
+W0000 00:00:1772563932.260401   11988 
+landmark_projection_calculator.cc:186] Using 
+NORM_RECT without IMAGE_DIMENSIONS is only supported 
+for the square ROI. Provide IMAGE_DIMENSIONS or use 
+PROJECTION_MATRIX.
+Traceback (most recent call last):
+  File "D:\SewNova\backend\measurement-service\run_eva
+luation.py", line 254, in <module>
+Loaded MiDaS model: DPT_Hybrid on cpu
+Loaded SegFormer model: mattmdjaga/segformer_b2_clothes
+Loaded 6 ground truth entries.
+Looking for images in: D:\SewNova\backend\measurement-service\DATASET/<set_id>/front_img.jpg
+
+==================================================
+  Running mode: baseline_2d
+==================================================
+  [OK]   set_id=1  (0.5s)  chest=111.28, waist=67.37, hip=86.78
+  [OK]   set_id=2  (0.3s)  chest=123.43, waist=82.37, hip=106.13
+  [OK]   set_id=3  (0.3s)  chest=114.22, waist=61.39, hip=79.09
+  [OK]   set_id=4  (0.3s)  chest=55.37, waist=34.63, hip=44.61
+  [OK]   set_id=5  (0.3s)  chest=110.66, waist=65.2, hip=83.99
+  [OK]   set_id=6  (0.3s)  chest=114.23, waist=66.41, hip=85.56
+  Processed 6 images for baseline_2d
+
+==================================================
+  Running mode: fusion_depth_seg
+==================================================
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[fusion_depth_seg] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=1  (2.1s)  chest=162.26, waist=180.67, hip=86.78
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[fusion_depth_seg] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=2  (2.2s)  chest=199.36, waist=215.24, hip=106.13
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[fusion_depth_seg] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=3  (2.1s)  chest=157.89, waist=175.69, hip=79.09
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[fusion_depth_seg] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=4  (2.0s)  chest=78.84, waist=85.33, hip=44.61
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[fusion_depth_seg] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=5  (2.0s)  chest=150.07, waist=168.49, hip=83.99
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[fusion_depth_seg] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=6  (1.9s)  chest=164.33, waist=174.04, hip=85.56
+  Processed 6 images for fusion_depth_seg
+
+==================================================
+  Running mode: full_corrected
+==================================================
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[full_corrected] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=1  (1.9s)  chest=162.26, waist=180.67, hip=86.78
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[full_corrected] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=2  (1.9s)  chest=199.36, waist=215.24, hip=106.13
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[full_corrected] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=3  (1.9s)  chest=157.89, waist=175.69, hip=79.09
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[full_corrected] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=4  (1.9s)  chest=78.84, waist=85.33, hip=44.61
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[full_corrected] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=5  (1.9s)  chest=150.07, waist=168.49, hip=83.99
+Depth estimation error: unsupported operand type(s) for /: 'Image' and 'float'
+[full_corrected] Depth estimation failed: unsupported operand type(s) for /: 'Image' and 'float'
+  [OK]   set_id=6  (2.0s)  chest=164.33, waist=174.04, hip=85.56
+  Processed 6 images for full_corrected
+
+Saved: D:\SewNova\backend\measurement-service\results_baseline_2d.csv
+Saved: D:\SewNova\backend\measurement-service\results_fusion_depth_seg.csv
+Saved: D:\SewNova\backend\measurement-service\results_full_corrected.csv
+
+
+=======================================================
+           EVALUATION SUMMARY
+=======================================================
+    main()
+  File "D:\SewNova\backend\measurement-service\run_eva
+luation.py", line 201, in main
+    print(f"\n{'\u2500' * 55}")
+  File "C:\Program Files\WindowsApps\PythonSoftwareFou
+ndation.Python.3.11_3.11.2544.0_x64__qbz5n2kfra8p0\Lib
+\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,enc
+oding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode 
+characters in position 2-56: character maps to 
+<undefined>

@@ -1,0 +1,168 @@
+STDOUT:
+Loaded MiDaS model: DPT_Hybrid on cpu
+Loaded SegFormer model: mattmdjaga/segformer_b2_clothes
+Loaded 6 ground truth entries.
+Looking for images in: D:\SewNova\backend\measurement-service\DATASET/<set_id>/front_img.jpg
+
+==================================================
+  Running mode: baseline_2d
+==================================================
+  [OK]   set_id=1  (0.5s)  chest=111.28, waist=67.37, hip=86.78
+  [OK]   set_id=2  (0.3s)  chest=123.43, waist=82.37, hip=106.13
+  [OK]   set_id=3  (0.3s)  chest=114.22, waist=61.39, hip=79.09
+  [OK]   set_id=4  (0.3s)  chest=55.37, waist=34.63, hip=44.61
+  [OK]   set_id=5  (0.3s)  chest=110.66, waist=65.2, hip=83.99
+  [OK]   set_id=6  (0.3s)  chest=114.23, waist=66.41, hip=85.56
+  Processed 6 images for baseline_2d
+
+==================================================
+  Running mode: segmentation_only
+==================================================
+    [SEG] chest: mask (162.3) > landmarks (111.3) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (180.7) > landmarks (67.4) -> KEEPING landmarks (loose clothing)
+  [OK]   set_id=1  (2.0s)  chest=111.28, waist=67.37, hip=86.78
+    [SEG] chest: mask (199.4) > landmarks (123.4) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (215.2) > landmarks (82.4) -> KEEPING landmarks (loose clothing)
+  [OK]   set_id=2  (1.9s)  chest=123.43, waist=82.37, hip=106.13
+    [SEG] chest: mask (157.9) > landmarks (114.2) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (175.7) > landmarks (61.4) -> KEEPING landmarks (loose clothing)
+  [OK]   set_id=3  (2.0s)  chest=114.22, waist=61.39, hip=79.09
+    [SEG] chest: mask (78.8) > landmarks (55.4) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (85.3) > landmarks (34.6) -> KEEPING landmarks (loose clothing)
+  [OK]   set_id=4  (1.9s)  chest=55.37, waist=34.63, hip=44.61
+    [SEG] chest: mask (150.1) > landmarks (110.7) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (168.5) > landmarks (65.2) -> KEEPING landmarks (loose clothing)
+  [OK]   set_id=5  (1.9s)  chest=110.66, waist=65.2, hip=83.99
+    [SEG] chest: mask (164.3) > landmarks (114.2) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (174.0) > landmarks (66.4) -> KEEPING landmarks (loose clothing)
+  [OK]   set_id=6  (2.0s)  chest=114.23, waist=66.41, hip=85.56
+  Processed 6 images for segmentation_only
+
+==================================================
+  Running mode: full_corrected
+==================================================
+    [SEG] chest: mask (162.3) > landmarks (111.3) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (180.7) > landmarks (67.4) -> KEEPING landmarks (loose clothing)
+    [DEPTH] chest: depth (167.0) > current (111.3) -> KEEPING current (depth inflates)
+    [DEPTH] waist: depth (187.4) > current (67.4) -> KEEPING current (depth inflates)
+    [DEPTH] hip: depth (83.2) <= current (86.8) -> USING depth (refined)
+    [CORRECTION] chest: 111.28 x 0.85 = 94.59
+    [CORRECTION] waist: 67.37 x 0.92 = 61.98
+    [CORRECTION] hip: 83.22 x 1.02 = 84.88
+  [OK]   set_id=1  (4.2s)  chest=94.59, waist=61.98, hip=84.88
+    [SEG] chest: mask (199.4) > landmarks (123.4) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (215.2) > landmarks (82.4) -> KEEPING landmarks (loose clothing)
+    [DEPTH] chest: depth (205.8) > current (123.4) -> KEEPING current (depth inflates)
+    [DEPTH] waist: depth (222.8) > current (82.4) -> KEEPING current (depth inflates)
+    [DEPTH] hip: depth (102.0) <= current (106.1) -> USING depth (refined)
+    [CORRECTION] chest: 123.43 x 0.85 = 104.92
+    [CORRECTION] waist: 82.37 x 0.92 = 75.78
+    [CORRECTION] hip: 102.02 x 1.02 = 104.06
+  [OK]   set_id=2  (4.1s)  chest=104.92, waist=75.78, hip=104.06
+    [SEG] chest: mask (157.9) > landmarks (114.2) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (175.7) > landmarks (61.4) -> KEEPING landmarks (loose clothing)
+    [DEPTH] chest: depth (163.0) > current (114.2) -> KEEPING current (depth inflates)
+    [DEPTH] waist: depth (181.8) > current (61.4) -> KEEPING current (depth inflates)
+    [DEPTH] hip: depth (76.0) <= current (79.1) -> USING depth (refined)
+    [CORRECTION] chest: 114.22 x 0.85 = 97.09
+    [CORRECTION] waist: 61.39 x 0.92 = 56.48
+    [CORRECTION] hip: 76.03 x 1.02 = 77.55
+  [OK]   set_id=3  (4.0s)  chest=97.09, waist=56.48, hip=77.55
+    [SEG] chest: mask (78.8) > landmarks (55.4) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (85.3) > landmarks (34.6) -> KEEPING landmarks (loose clothing)
+    [DEPTH] chest: depth (81.2) > current (55.4) -> KEEPING current (depth inflates)
+    [DEPTH] waist: depth (88.5) > current (34.6) -> KEEPING current (depth inflates)
+    [DEPTH] hip: depth (42.8) <= current (44.6) -> USING depth (refined)
+    [CORRECTION] chest: 55.37 x 0.85 = 47.06
+    [CORRECTION] waist: 34.63 x 0.92 = 31.86
+    [CORRECTION] hip: 42.77 x 1.02 = 43.63
+  [OK]   set_id=4  (4.1s)  chest=47.06, waist=31.86, hip=43.63
+    [SEG] chest: mask (150.1) > landmarks (110.7) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (168.5) > landmarks (65.2) -> KEEPING landmarks (loose clothing)
+    [DEPTH] chest: depth (150.1) > current (110.7) -> KEEPING current (depth inflates)
+    [DEPTH] waist: depth (174.8) > current (65.2) -> KEEPING current (depth inflates)
+    [DEPTH] hip: depth (80.5) <= current (84.0) -> USING depth (refined)
+    [CORRECTION] chest: 110.66 x 0.85 = 94.06
+    [CORRECTION] waist: 65.20 x 0.92 = 59.98
+    [CORRECTION] hip: 80.54 x 1.02 = 82.15
+  [OK]   set_id=5  (4.1s)  chest=94.06, waist=59.98, hip=82.15
+    [SEG] chest: mask (164.3) > landmarks (114.2) -> KEEPING landmarks (loose clothing)
+    [SEG] waist: mask (174.0) > landmarks (66.4) -> KEEPING landmarks (loose clothing)
+    [DEPTH] chest: depth (164.3) > current (114.2) -> KEEPING current (depth inflates)
+    [DEPTH] waist: depth (180.1) > current (66.4) -> KEEPING current (depth inflates)
+    [DEPTH] hip: depth (82.2) <= current (85.6) -> USING depth (refined)
+    [CORRECTION] chest: 114.23 x 0.85 = 97.10
+    [CORRECTION] waist: 66.41 x 0.92 = 61.10
+    [CORRECTION] hip: 82.24 x 1.02 = 83.88
+  [OK]   set_id=6  (4.0s)  chest=97.1, waist=61.1, hip=83.88
+  Processed 6 images for full_corrected
+
+Saved: D:\SewNova\backend\measurement-service\results_baseline_2d.csv
+Saved: D:\SewNova\backend\measurement-service\results_segmentation_only.csv
+Saved: D:\SewNova\backend\measurement-service\results_full_corrected.csv
+
+
+=======================================================
+           EVALUATION SUMMARY
+=======================================================
+
+-------------------------------------------------------
+  Mode: baseline_2d   (6 images)
+-------------------------------------------------------
+    MAE_chest  =   23.41 cm    RMSE_chest  =   24.22 cm
+    MAE_waist  =   14.44 cm    RMSE_waist  =   19.59 cm
+    MAE_hip    =    9.37 cm    RMSE_hip    =   15.12 cm
+    MAE_avg    =   15.74 cm
+
+-------------------------------------------------------
+  Mode: segmentation_only   (6 images)
+-------------------------------------------------------
+    MAE_chest  =   23.41 cm    RMSE_chest  =   24.22 cm
+    MAE_waist  =   14.44 cm    RMSE_waist  =   19.59 cm
+    MAE_hip    =    9.37 cm    RMSE_hip    =   15.12 cm
+    MAE_avg    =   15.74 cm
+    Improvement from baseline: +0.0 %
+
+-------------------------------------------------------
+  Mode: full_corrected   (6 images)
+-------------------------------------------------------
+    MAE_chest  =   12.14 cm    RMSE_chest  =   17.42 cm
+    MAE_waist  =   19.47 cm    RMSE_waist  =   23.09 cm
+    MAE_hip    =    9.21 cm    RMSE_hip    =   15.49 cm
+    MAE_avg    =   13.61 cm
+    Improvement from baseline: +13.5 %
+
+
+=======================================================
+       ROBUSTNESS SPLIT (by category)
+=======================================================
+
+  Mode: baseline_2d
+    [clean       ]  n=  6  MAE_avg = 15.74 cm
+
+  Mode: segmentation_only
+    [clean       ]  n=  6  MAE_avg = 15.74 cm
+
+  Mode: full_corrected
+    [clean       ]  n=  6  MAE_avg = 13.61 cm
+
+=======================================================
+  Evaluation complete.
+=======================================================
+
+
+STDERR:
+INFO: Created TensorFlow Lite XNNPACK delegate for CPU.
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+W0000 00:00:1772638914.161419   15768 inference_feedback_manager.cc:114] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+W0000 00:00:1772638914.296672   24856 inference_feedback_manager.cc:114] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+Using cache found in C:\Users\LENOVO/.cache\torch\hub\intel-isl_MiDaS_master
+C:\Users\LENOVO\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\timm\models\layers\__init__.py:48: FutureWarning: Importing from timm.models.layers is deprecated, please import via timm.layers
+  warnings.warn(f"Importing from {__name__} is deprecated, please import via timm.layers", FutureWarning)
+C:\Users\LENOVO\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\timm\models\_factory.py:138: UserWarning: Mapping deprecated model name vit_base_resnet50_384 to current vit_base_r50_s16_384.orig_in21k_ft_in1k.
+  model = create_fn(
+Using cache found in C:\Users\LENOVO/.cache\torch\hub\intel-isl_MiDaS_master
+Using a slow image processor as `use_fast` is unset and a slow processor was saved with this model. `use_fast=True` will be the default behavior in v4.52, even if the model was saved with a slow processor. This will result in minor differences in outputs. You'll still be able to use a slow processor with `use_fast=False`.
+C:\Users\LENOVO\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\LocalCache\local-packages\Python311\site-packages\transformers\image_processing_base.py:417: UserWarning: The following named arguments are not valid for `SegformerImageProcessor.__init__` and were ignored: 'reduce_labels'
+  image_processor = cls(**image_processor_dict)
+W0000 00:00:1772638929.465236   21672 landmark_projection_calculator.cc:186] Using NORM_RECT without IMAGE_DIMENSIONS is only supported for the square ROI. Provide IMAGE_DIMENSIONS or use PROJECTION_MATRIX.

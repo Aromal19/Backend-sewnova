@@ -1,102 +1,155 @@
 const GarmentType = require('../models/GarmentType');
 const SizeChart = require('../models/SizeChart');
 
+const CM_TO_INCH = 0.393701;
+
+/**
+ * Auto-detect if measurements are in cm and convert to inches.
+ * Heuristic: if any primary measurement (chest/bust/waist/hip) > 50, it's likely cm.
+ */
+function autoConvertToInches(measurements) {
+    const converted = { ...measurements };
+    const indicators = ['chest', 'bust', 'waist', 'hip'];
+
+    let detectedUnit = 'inch';
+    for (const key of indicators) {
+        const val = parseFloat(converted[key]);
+        if (!isNaN(val) && val > 50) {
+            detectedUnit = 'cm';
+            break;
+        }
+    }
+
+    if (detectedUnit === 'cm') {
+        console.log('📐 Auto-detected measurements in CM — converting to inches');
+        for (const [key, value] of Object.entries(converted)) {
+            const num = parseFloat(value);
+            if (!isNaN(num)) {
+                converted[key] = parseFloat((num * CM_TO_INCH).toFixed(1));
+            }
+        }
+    }
+
+    return converted;
+}
+
+/**
+ * Dimensions used for SIZE DETERMINATION (fit measurements).
+ * Length-class measurements (length, sleeve, inseam) are EXCLUDED because
+ * AI body measurements (body length ~41") differ fundamentally from
+ * garment measurements (shirt length ~29", blouse length ~19").
+ * Length dimensions are only used for fabric ADJUSTMENTS, not size matching.
+ */
+const FIT_DIMENSIONS = ['chest', 'bust', 'waist', 'hip', 'shoulder'];
+
 class SizeMatchingService {
     /**
-     * Determine the smallest standard size for a user.
-     * @param {string} garmentTypeCode - e.g., 'mens-kurta'
-     * @param {object} userMeasurements - e.g., { chest: 40.5, waist: 38, ... }
-     * @returns {Promise<object>} { selectedSize, isOversize, reasoning }
+     * Determine the smallest standard size that fits the user.
+     * Only uses FIT_DIMENSIONS (chest, bust, waist, hip, shoulder) for size determination.
+     * Length/sleeve/inseam inform fabric adjustments but do NOT affect size selection.
      */
     async determineSize(garmentTypeCode, userMeasurements) {
         // 1. Fetch Garment Type
         const garmentType = await GarmentType.findOne({ code: garmentTypeCode.toUpperCase() });
         if (!garmentType) {
-            throw new Error(`Invalid garment type code: ${garmentTypeCode}`);
+            throw new Error(`Garment type not configured: ${garmentTypeCode}`);
         }
 
-        // 2. Fetch Size Charts & Sort
+        // 2. Fetch Size Charts sorted by primary measurement ascending
         const sortKey = `measurements.${garmentType.primaryMeasurement}`;
         const sizeCharts = await SizeChart.find({ garmentType: garmentType._id })
-            .sort({ [sortKey]: 1 }); // Ascending order
+            .sort({ [sortKey]: 1 });
 
         if (!sizeCharts || sizeCharts.length === 0) {
-            throw new Error(`No size charts found for garment type: ${garmentTypeCode}`);
+            throw new Error(`No size charts configured for garment type: ${garmentTypeCode}`);
         }
 
-        // 3. Determine Required Keys (from the first size chart)
-        // We assume all size charts for a garment have the same schema structure in 'measurements'
-        // We filter out internal keys (like _id, unit, $__ etc if raw) but Mongoose object usually returns clean obj or we can use .toObject()
+        // 3. Auto-convert cm → inches
+        const inchMeasurements = autoConvertToInches(userMeasurements);
+        console.log('📏 Measurements (inches):', JSON.stringify(inchMeasurements));
+
+        // 4. Determine garment-relevant FIT keys (exclude length/sleeve/inseam)
         const firstChart = sizeCharts[0].toObject();
-        const requiredKeys = Object.keys(firstChart.measurements).filter(key =>
-            key !== 'unit' && key !== '_id'
+        const allGarmentKeys = Object.keys(firstChart.measurements).filter(key =>
+            key !== 'unit' && key !== '_id' && firstChart.measurements[key] != null
         );
+        const fitKeys = allGarmentKeys.filter(key => FIT_DIMENSIONS.includes(key));
 
-        // 4. Validate User Inputs & Apply Defaults
-        // For missing measurements, use reasonable defaults based on provided measurements
-        const completeMeasurements = { ...userMeasurements };
+        console.log(`📏 Size matching using FIT keys only: [${fitKeys.join(', ')}]`);
+        console.log(`   (Excluded from size matching: [${allGarmentKeys.filter(k => !FIT_DIMENSIONS.includes(k)).join(', ')}])`);
 
-        for (const key of requiredKeys) {
-            if (completeMeasurements[key] === undefined || completeMeasurements[key] === null) {
-                // Apply smart defaults based on what we have
-                if (key === 'waist' && completeMeasurements.chest) {
-                    completeMeasurements[key] = completeMeasurements.chest - 4; // Typical waist is 4" less than chest
-                } else if (key === 'hip' && completeMeasurements.chest) {
-                    completeMeasurements[key] = completeMeasurements.chest + 2; // Typical hip is 2" more than chest
-                } else if (key === 'length' && completeMeasurements.chest) {
-                    completeMeasurements[key] = completeMeasurements.chest + 2; // Default kurta length
-                } else if (key === 'sleeve' && completeMeasurements.chest) {
-                    completeMeasurements[key] = Math.round(completeMeasurements.chest * 0.6); // Approximate sleeve length
-                } else if (key === 'shoulder' && completeMeasurements.chest) {
-                    completeMeasurements[key] = Math.round(completeMeasurements.chest * 0.45); // Approximate shoulder width
-                } else {
-                    // If we can't estimate, use a safe default from the smallest size
-                    const firstSize = sizeCharts[0].measurements;
-                    completeMeasurements[key] = firstSize[key] || 0;
-                }
-                console.log(`⚠️ Missing measurement '${key}', using default: ${completeMeasurements[key]}`);
-            }
+        // 5. Build complete measurements with smart defaults
+        const completeMeasurements = { ...inchMeasurements };
+
+        // Cross-map bust ↔ chest
+        if (completeMeasurements.chest && !completeMeasurements.bust) {
+            completeMeasurements.bust = completeMeasurements.chest;
+        }
+        if (completeMeasurements.bust && !completeMeasurements.chest) {
+            completeMeasurements.chest = completeMeasurements.bust;
         }
 
-        // Update userMeasurements reference for the rest of the function
+        for (const key of allGarmentKeys) {
+            if (completeMeasurements[key] !== undefined && completeMeasurements[key] !== null) continue;
+
+            const chest = completeMeasurements.chest || completeMeasurements.bust;
+
+            if (key === 'waist' && chest) {
+                completeMeasurements[key] = chest - 4;
+            } else if (key === 'hip' && (completeMeasurements.waist || chest)) {
+                completeMeasurements[key] = (completeMeasurements.waist || chest) + 4;
+            } else if (key === 'shoulder' && chest) {
+                completeMeasurements[key] = Math.round(chest * 0.45);
+            } else if (key === 'length') {
+                // Don't default body length — it's not used for size matching
+                completeMeasurements[key] = firstChart.measurements[key] || 0;
+            } else if (key === 'sleeve') {
+                completeMeasurements[key] = firstChart.measurements[key] || 0;
+            } else if (key === 'inseam') {
+                completeMeasurements[key] = firstChart.measurements[key] || 0;
+            } else if (key === 'bust' && chest) {
+                completeMeasurements[key] = chest;
+            } else {
+                completeMeasurements[key] = firstChart.measurements[key] || 0;
+            }
+            console.log(`   ⚠️ Defaulted '${key}' to: ${completeMeasurements[key]}"`);
+        }
+
+        // Push normalized values back
         Object.assign(userMeasurements, completeMeasurements);
 
+        // 6. Evaluate sizes using ONLY fit dimensions
         let selectedSize = null;
-        let reasoning = [];
+        const reasoning = [];
 
-        // 5. Evaluate Sizes
         for (const size of sizeCharts) {
             const chartMeasurements = size.measurements;
             let fitsAll = true;
-            let sizeReasoning = [];
+            const sizeReasoning = [];
 
-            for (const key of requiredKeys) {
-                const userVal = parseFloat(userMeasurements[key]);
-                const standardVal = parseFloat(chartMeasurements[key]);
+            for (const key of fitKeys) {
+                const stdVal = chartMeasurements[key] != null ? parseFloat(chartMeasurements[key]) : null;
+                if (stdVal === null) continue;
 
-                if (isNaN(userVal)) {
-                    throw new Error(`Invalid user measurement for ${key}`);
-                }
+                const userVal = parseFloat(completeMeasurements[key]);
+                if (isNaN(userVal)) continue;
 
-                if (standardVal < userVal) {
+                if (stdVal < userVal) {
                     fitsAll = false;
-                    sizeReasoning.push(`${key} (${userVal}) > ${size.sizeLabel} ${key} (${standardVal})`);
+                    sizeReasoning.push(`${key}: ${userVal}" > ${size.sizeLabel} std ${stdVal}"`);
                 }
             }
 
             if (fitsAll) {
                 selectedSize = size;
-                reasoning.push(`Fits within ${size.sizeLabel} standard measurements.`);
+                reasoning.push(`✅ Fits ${size.sizeLabel} on fit dimensions: [${fitKeys.join(', ')}]`);
                 break;
             } else {
-                // Keep track of why we skipped this size for final reporting if needed, 
-                // or just accumulate "Rounded up from X" log.
-                // Actually, the requirement says "Reasons for rounding up".
                 reasoning.push(`Skipped ${size.sizeLabel}: ${sizeReasoning.join(', ')}`);
             }
         }
 
-        // 6. Handle Fallback (Oversize)
+        // 7. Oversize fallback
         if (!selectedSize) {
             const largestSize = sizeCharts[sizeCharts.length - 1];
             return {
@@ -104,7 +157,7 @@ class SizeMatchingService {
                 isOversize: true,
                 reasoning: [
                     ...reasoning,
-                    `User measurements exceed largest available size (${largestSize.sizeLabel}). Selected largest size as base.`
+                    `User exceeds largest size (${largestSize.sizeLabel}) on fit dimensions. Using as base.`
                 ]
             };
         }
@@ -112,7 +165,7 @@ class SizeMatchingService {
         return {
             selectedSize: selectedSize.sizeLabel,
             isOversize: false,
-            reasoning: reasoning
+            reasoning
         };
     }
 }

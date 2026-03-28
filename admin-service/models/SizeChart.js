@@ -18,12 +18,14 @@ const sizeChartSchema = new mongoose.Schema({
             default: 'inch',
             enum: ['inch', 'cm']
         },
-        chest: { type: Number, required: true },
-        waist: { type: Number, required: true },
-        length: { type: Number, required: true },
-        sleeve: { type: Number, required: true },
-        shoulder: { type: Number }, // Optional but good for detailed tailoring
-        hip: { type: Number }      // Optional
+        chest: { type: Number },
+        bust: { type: Number },
+        waist: { type: Number },
+        hip: { type: Number },
+        length: { type: Number },
+        sleeve: { type: Number },
+        shoulder: { type: Number },
+        inseam: { type: Number }
     },
     createdAt: {
         type: Date,

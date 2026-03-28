@@ -42,7 +42,12 @@ const loginUser = async (req, res) => {
       role: userRole,
       phone: user.phone
     };
-    if (userRole === 'tailor') {
+    if (userRole === 'customer') {
+      userResponse.gender = user.gender || null;
+      userResponse.isEmailVerified = user.isEmailVerified;
+      userResponse.countryCode = user.countryCode;
+      userResponse.isGoogleUser = user.isGoogleUser;
+    } else if (userRole === 'tailor') {
       userResponse.shopName = user.shopName;
       userResponse.experience = user.experience;
       userResponse.specialization = user.specialization;
@@ -346,7 +351,12 @@ const googleSignIn = async (req, res) => {
         role: userRole,
         phone: user.phone
       };
-      if (userRole === 'tailor') {
+      if (userRole === 'customer') {
+        userResponse.gender = user.gender || null;
+        userResponse.isEmailVerified = user.isEmailVerified;
+        userResponse.countryCode = user.countryCode;
+        userResponse.isGoogleUser = user.isGoogleUser;
+      } else if (userRole === 'tailor') {
         userResponse.shopName = user.shopName;
         userResponse.experience = user.experience;
         userResponse.specialization = user.specialization;
@@ -389,7 +399,10 @@ const googleSignIn = async (req, res) => {
       lastname: newUser.lastname,
       email: newUser.email,
       role: 'customer',
-      phone: newUser.phone
+      phone: newUser.phone,
+      gender: null,
+      isEmailVerified: true,
+      isGoogleUser: true
     };
     res.cookie('refreshToken', refreshTokenDoc.token, {
       httpOnly: true,
