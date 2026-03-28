@@ -13,13 +13,20 @@ const app = express();
 // CORS configuration for credentialed requests
 const allowedOrigins = [
   'http://localhost:5173',
-  'https://frontend-sewnova.vercel.app'
+  'http://localhost:3000',
+  'https://frontend-sewnova.vercel.app',
+  'https://sewnova.vercel.app'
 ];
+const isOriginAllowed = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  if (/^https:\/\/.*\.vercel\.app$/.test(origin)) return true;
+  return false;
+};
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true); // allow non-browser or same-origin
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (isOriginAllowed(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
